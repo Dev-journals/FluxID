@@ -7,132 +7,6 @@
 
 ---
 
-## 🟡 Level 2 — Yellow Belt Mandatory Proof
-
-Everything a reviewer needs to verify Level 2 is collected here so nothing has to be hunted for across the repo.
-
-| Requirement | Status | Proof |
-|---|---|---|
-| Contract deployed on testnet | ✅ | Contract ID `CAUICITFNLDMHPXARAXARFBS3JKRGZZP5CE7B4DTLFBCJB5F4U24CKBP` — [view on stellar.expert](https://stellar.expert/explorer/testnet/contract/CAUICITFNLDMHPXARAXARFBS3JKRGZZP5CE7B4DTLFBCJB5F4U24CKBP) |
-| Transaction hash of a contract call | ✅ | [`a00cfdea…de3e`](https://stellar.expert/explorer/testnet/tx/a00cfdeaadf703ca17b033013974e130e3baab961450fc4a18064230f0d2de3e) and [`b58a679b…91c7`](https://stellar.expert/explorer/testnet/tx/b58a679bf231a0f74c41fe4d67e115736773170766106adee4a11eab820591c7) |
-| Contract called from the frontend | ✅ | [`frontend/app/dashboard/contract/page.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/contract/page.tsx) reads/writes the Soroban contract via RPC |
-| Multi-wallet connect (Freighter / Albedo / xBull) | ✅ | [`frontend/app/context/FreighterContext.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/context/FreighterContext.tsx) — see snippet below |
-| 3+ error types handled | ✅ | User rejection, wallet not installed, and signing/insufficient-balance failures — see wallet snippet below |
-| Transaction status visible | ✅ | Pending → success/fail states in [`frontend/app/dashboard/transfer/page.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/transfer/page.tsx) |
-| Minimum 2+ meaningful commits | ✅ | See the repo [commit history](https://github.com/bbkenny/FluxID/commits/main) (190+ commits) |
-
-### 📂 Repository Structure (where each mandatory file lives)
-
-The Soroban contract lives under a `contracts/` folder, nested inside `smartcontract/`:
-
-```
-FluxID/
-├── smartcontract/
-│   └── contracts/
-│       ├── liquidity_identity/
-│       │   └── src/
-│       │       ├── lib.rs      ← main contract source
-│       │       └── test.rs     ← contract tests
-│       └── oracle_registry/
-│           └── src/
-│               └── lib.rs      ← authorization registry contract
-├── frontend/                   ← Next.js app (multi-wallet, dashboard)
-│   └── app/
-│       ├── context/FreighterContext.tsx   ← wallet connection
-│       └── dashboard/                      ← contract calls, transfers, status
-└── backend/                    ← Node.js API (scoring, Horizon, payments)
-```
-
-- **Contract source:** [`smartcontract/contracts/liquidity_identity/src/lib.rs`](https://github.com/bbkenny/FluxID/blob/main/smartcontract/contracts/liquidity_identity/src/lib.rs)
-- **Contract tests:** [`smartcontract/contracts/liquidity_identity/src/test.rs`](https://github.com/bbkenny/FluxID/blob/main/smartcontract/contracts/liquidity_identity/src/test.rs)
-
-### 🦀 Smart Contract — core function (from `lib.rs`)
-
-Full file: [`smartcontract/contracts/liquidity_identity/src/lib.rs`](https://github.com/bbkenny/FluxID/blob/main/smartcontract/contracts/liquidity_identity/src/lib.rs)
-
-```rust
-pub fn set_score(
-    env: Env,
-    caller: Address,
-    wallet: Address,
-    score: u32,
-    risk: RiskLevel,
-    score_input_hash: BytesN<32>,
-) {
-    caller.require_auth();
-
-    // Cross-contract call to OracleRegistry to check authorization
-    let registry_id: Address = env
-        .storage()
-        .instance()
-        .get(&DataKey::OracleRegistryId)
-        .unwrap_or_else(|| panic!("OracleRegistry not configured"));
-
-    let is_authorized: bool = env.invoke_contract(
-        &registry_id,
-        &soroban_sdk::Symbol::new(&env, "is_oracle_authorized"),
-        soroban_sdk::vec![&env, caller.to_val()],
-    );
-
-    if !is_authorized {
-        panic!("Unauthorized: caller is not an authorized oracle");
-    }
-
-    if score > 100 {
-        panic!("Score must be between 0 and 100");
-    }
-
-    // ... persists score, risk, timestamp and the verifiable input hash ...
-
-    // Emit a ScoreSet event so off-chain indexers and users can observe
-    // every score update without trusting the admin.
-    env.events().publish(
-        (Symbol::new(&env, "score_set"), wallet.clone()),
-        (score, risk, timestamp, score_input_hash.clone()),
-    );
-}
-```
-
-### 🔌 Frontend — multi-wallet connect + error handling (from `FreighterContext.tsx`)
-
-Full file: [`frontend/app/context/FreighterContext.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/context/FreighterContext.tsx)
-
-```tsx
-// Multi-wallet init via StellarWalletsKit (Freighter, Albedo, xBull)
-StellarWalletsKit.init({
-  network: Networks.TESTNET,
-  selectedWalletId: "freighter",
-  modules: [new FreighterModule(), new AlbedoModule(), new xBullModule()],
-});
-
-// Restore an existing session with getAddress()
-const { address } = await StellarWalletsKit.getAddress();
-
-// Connect flow with three distinct error types handled
-const connect = useCallback(async () => {
-  try {
-    const { address } = await StellarWalletsKit.authModal();
-    setState({ isConnected: true, publicKey: address, /* ... */ });
-  } catch (err: any) {
-    let errMsg = err.message || "Failed to connect to wallet.";
-    if (errMsg.toLowerCase().includes("reject")) {
-      errMsg = "Wallet connection rejected by user.";        // 1) user rejection
-    } else if (errMsg.toLowerCase().includes("not found")) {
-      errMsg = "Wallet is not installed or not found.";      // 2) wallet missing
-    }
-    setState((prev) => ({ ...prev, error: errMsg }));         // 3) generic/other failure
-    showToast(errMsg, "error");
-  }
-}, [showToast]);
-```
-
-Transactions are signed via `kit.signTransaction(...)` in
-[`transfer/page.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/transfer/page.tsx)
-and [`contract/page.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/contract/page.tsx),
-with pending/success/fail status shown in the UI.
-
----
-
 ## Overview
 
 FluxID is a liquidity intelligence layer built on **Stellar** that turns any wallet into a real-time financial identity.
@@ -618,6 +492,132 @@ export const STELLAR_CONFIG = {
 
 ---
 
+
+## 🟡 Level 2 — Yellow Belt Mandatory Proof
+
+Everything a reviewer needs to verify Level 2 is collected here so nothing has to be hunted for across the repo.
+
+| Requirement | Status | Proof |
+|---|---|---|
+| Contract deployed on testnet | ✅ | Contract ID `CAUICITFNLDMHPXARAXARFBS3JKRGZZP5CE7B4DTLFBCJB5F4U24CKBP` — [view on stellar.expert](https://stellar.expert/explorer/testnet/contract/CAUICITFNLDMHPXARAXARFBS3JKRGZZP5CE7B4DTLFBCJB5F4U24CKBP) |
+| Transaction hash of a contract call | ✅ | [`a00cfdea…de3e`](https://stellar.expert/explorer/testnet/tx/a00cfdeaadf703ca17b033013974e130e3baab961450fc4a18064230f0d2de3e) and [`b58a679b…91c7`](https://stellar.expert/explorer/testnet/tx/b58a679bf231a0f74c41fe4d67e115736773170766106adee4a11eab820591c7) |
+| Contract called from the frontend | ✅ | [`frontend/app/dashboard/contract/page.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/contract/page.tsx) reads/writes the Soroban contract via RPC |
+| Multi-wallet connect (Freighter / Albedo / xBull) | ✅ | [`frontend/app/context/FreighterContext.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/context/FreighterContext.tsx) — see snippet below |
+| 3+ error types handled | ✅ | User rejection, wallet not installed, and signing/insufficient-balance failures — see wallet snippet below |
+| Transaction status visible | ✅ | Pending → success/fail states in [`frontend/app/dashboard/transfer/page.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/transfer/page.tsx) |
+| Minimum 2+ meaningful commits | ✅ | See the repo [commit history](https://github.com/bbkenny/FluxID/commits/main) (190+ commits) |
+
+### 📂 Repository Structure (where each mandatory file lives)
+
+The Soroban contract lives under a `contracts/` folder, nested inside `smartcontract/`:
+
+```
+FluxID/
+├── smartcontract/
+│   └── contracts/
+│       ├── liquidity_identity/
+│       │   └── src/
+│       │       ├── lib.rs      ← main contract source
+│       │       └── test.rs     ← contract tests
+│       └── oracle_registry/
+│           └── src/
+│               └── lib.rs      ← authorization registry contract
+├── frontend/                   ← Next.js app (multi-wallet, dashboard)
+│   └── app/
+│       ├── context/FreighterContext.tsx   ← wallet connection
+│       └── dashboard/                      ← contract calls, transfers, status
+└── backend/                    ← Node.js API (scoring, Horizon, payments)
+```
+
+- **Contract source:** [`smartcontract/contracts/liquidity_identity/src/lib.rs`](https://github.com/bbkenny/FluxID/blob/main/smartcontract/contracts/liquidity_identity/src/lib.rs)
+- **Contract tests:** [`smartcontract/contracts/liquidity_identity/src/test.rs`](https://github.com/bbkenny/FluxID/blob/main/smartcontract/contracts/liquidity_identity/src/test.rs)
+
+### 🦀 Smart Contract — core function (from `lib.rs`)
+
+Full file: [`smartcontract/contracts/liquidity_identity/src/lib.rs`](https://github.com/bbkenny/FluxID/blob/main/smartcontract/contracts/liquidity_identity/src/lib.rs)
+
+```rust
+pub fn set_score(
+    env: Env,
+    caller: Address,
+    wallet: Address,
+    score: u32,
+    risk: RiskLevel,
+    score_input_hash: BytesN<32>,
+) {
+    caller.require_auth();
+
+    // Cross-contract call to OracleRegistry to check authorization
+    let registry_id: Address = env
+        .storage()
+        .instance()
+        .get(&DataKey::OracleRegistryId)
+        .unwrap_or_else(|| panic!("OracleRegistry not configured"));
+
+    let is_authorized: bool = env.invoke_contract(
+        &registry_id,
+        &soroban_sdk::Symbol::new(&env, "is_oracle_authorized"),
+        soroban_sdk::vec![&env, caller.to_val()],
+    );
+
+    if !is_authorized {
+        panic!("Unauthorized: caller is not an authorized oracle");
+    }
+
+    if score > 100 {
+        panic!("Score must be between 0 and 100");
+    }
+
+    // ... persists score, risk, timestamp and the verifiable input hash ...
+
+    // Emit a ScoreSet event so off-chain indexers and users can observe
+    // every score update without trusting the admin.
+    env.events().publish(
+        (Symbol::new(&env, "score_set"), wallet.clone()),
+        (score, risk, timestamp, score_input_hash.clone()),
+    );
+}
+```
+
+### 🔌 Frontend — multi-wallet connect + error handling (from `FreighterContext.tsx`)
+
+Full file: [`frontend/app/context/FreighterContext.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/context/FreighterContext.tsx)
+
+```tsx
+// Multi-wallet init via StellarWalletsKit (Freighter, Albedo, xBull)
+StellarWalletsKit.init({
+  network: Networks.TESTNET,
+  selectedWalletId: "freighter",
+  modules: [new FreighterModule(), new AlbedoModule(), new xBullModule()],
+});
+
+// Restore an existing session with getAddress()
+const { address } = await StellarWalletsKit.getAddress();
+
+// Connect flow with three distinct error types handled
+const connect = useCallback(async () => {
+  try {
+    const { address } = await StellarWalletsKit.authModal();
+    setState({ isConnected: true, publicKey: address, /* ... */ });
+  } catch (err: any) {
+    let errMsg = err.message || "Failed to connect to wallet.";
+    if (errMsg.toLowerCase().includes("reject")) {
+      errMsg = "Wallet connection rejected by user.";        // 1) user rejection
+    } else if (errMsg.toLowerCase().includes("not found")) {
+      errMsg = "Wallet is not installed or not found.";      // 2) wallet missing
+    }
+    setState((prev) => ({ ...prev, error: errMsg }));         // 3) generic/other failure
+    showToast(errMsg, "error");
+  }
+}, [showToast]);
+```
+
+Transactions are signed via `kit.signTransaction(...)` in
+[`transfer/page.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/transfer/page.tsx)
+and [`contract/page.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/contract/page.tsx),
+with pending/success/fail status shown in the UI.
+
+---
 ## Level 2 - Yellow Belt Submission
 
 - **Live demo link:** [https://fluxid.vercel.app/](https://fluxid.vercel.app/)
