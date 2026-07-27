@@ -302,7 +302,7 @@ FluxID is infrastructure for:
 - **Live demo link:** [https://fluxid.vercel.app/](https://fluxid.vercel.app/)
 - **Deployed contract address:** `CAUICITFNLDMHPXARAXARFBS3JKRGZZP5CE7B4DTLFBCJB5F4U24CKBP` (Liquidity Identity)
 - **Transaction hash of a contract call:** [a00cfdeaadf703ca17b033013974e130e3baab961450fc4a18064230f0d2de3e](https://stellar.expert/explorer/testnet/tx/a00cfdeaadf703ca17b033013974e130e3baab961450fc4a18064230f0d2de3e)
-- **Demo video link:** _<!-- add Level 4 Loom link here -->_
+- **Demo video link:** [Watch Level 4 Demo on Loom](https://www.loom.com/share/01aa11a64fa84e83867c66d1475d11ba)
 
 ### 🟢 Level 4 Requirements Map
 
@@ -331,12 +331,10 @@ Each Level 4 requirement mapped to the exact file, link, or screenshot that sati
 - **Durable Storage Guidance:** Documented the Render persistent-disk + `FLUXID_DATA_DIR` setup so usage/feedback data survives redeploys and cold starts.
 
 ### Level 4 Screenshots
-_<!-- Add the following once captured:
-![Product UI](docs/screenshots/L4_Product_UI.png)
-![Analytics / Monitoring](docs/screenshots/L4_Analytics.png)
-![Feedback Summary](docs/screenshots/L4_Feedback.png)
-![10+ Wallet Interactions](docs/screenshots/L4_Wallet_Proof.png)
--->_
+![Product UI](docs/screenshots/Product_UI.png)
+![Analytics / Monitoring](docs/screenshots/Analytics_n_Monitoring.png)
+![Feedback Summary](docs/screenshots/Feedback_Summary.png)
+![10+ Wallet Interactions](docs/screenshots/Wallet_Interactions_Proof.png)
 
 ---
 
