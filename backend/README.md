@@ -53,7 +53,7 @@ Backend provides the **scoring engine** that calculates liquidity scores from St
 | [llm.ts](https://github.com/StellarVhibes/FluxID/blob/main/backend/src/services/explainability/llm.ts#L10) | Anthropic Claude API |
 | [DEFAULT_MODEL](https://github.com/StellarVhibes/FluxID/blob/main/backend/src/services/explainability/llm.ts#L11) = `claude-haiku-4-5-20251001` |
 | [index.ts](https://github.com/StellarVhibes/FluxID/blob/main/backend/src/services/explainability/index.ts) | Entry point |
-| [score.routes.ts](https://github.com/StellarVhibes/FluxID/blob/main/backend/src/routes/score.routes.ts#L66) | AI explainability layer |
+| [mcp.routes.ts](https://github.com/StellarVhibes/FluxID/blob/main/backend/src/routes/mcp.routes.ts#L10) | AI explainability layer |
 
 **What Claude analyzes:**
 - Transaction patterns

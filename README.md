@@ -90,7 +90,7 @@ FluxID uses **Anthropic Claude** for explainable behavior insights.
 |----------|-------------|
 | [`explainBehavior()`](https://github.com/StellarVhibes/FluxID/blob/main/backend/src/services/explainability/llm.ts#L10) | Claude Haiku integration |
 | [`getExplanation()`](https://github.com/StellarVhibes/FluxID/blob/main/backend/src/services/explainability/index.ts#L8) | Entry point for AI |
-| [Score + AI](https://github.com/StellarVhibes/FluxID/blob/main/backend/src/routes/score.routes.ts#L66) | Combined score + AI response |
+| [Score + AI](https://github.com/StellarVhibes/FluxID/blob/main/backend/src/routes/mcp.routes.ts#L10) | Combined score + AI response |
 
 **What Claude Analyzes:**
 - Inflow/outflow consistency
