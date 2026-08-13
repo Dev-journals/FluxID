@@ -11,22 +11,31 @@ jobs:
     name: Smart Contract Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           targets: wasm32v1-none
+          components: rustfmt, clippy
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             smartcontract/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('smartcontract/Cargo.lock') }}
+
+      - name: Format Check
+        working-directory: ./smartcontract
+        run: cargo fmt --check
+
+      - name: Lint with Clippy
+        working-directory: ./smartcontract
+        run: cargo clippy --all-targets --all-features -- -D warnings -A unexpected_cfgs
 
       - name: Compile Smart Contracts
         working-directory: ./smartcontract
@@ -36,14 +45,39 @@ jobs:
         working-directory: ./smartcontract
         run: cargo test
 
+  backend-checks:
+    name: Backend Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './backend/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Build
+        working-directory: ./backend
+        run: npm run build
+
+      - name: Run Tests
+        working-directory: ./backend
+        run: npm test -- --passWithNoTests
+
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -52,6 +86,10 @@ jobs:
       - name: Install dependencies
         working-directory: ./frontend
         run: npm ci
+
+      - name: Lint with ESLint
+        working-directory: ./frontend
+        run: npm run lint
 
       - name: Run Frontend Tests
         working-directory: ./frontend
