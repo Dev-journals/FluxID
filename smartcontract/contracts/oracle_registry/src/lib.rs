@@ -32,7 +32,9 @@ impl OracleRegistry {
         if admin != stored_admin {
             panic!("Unauthorized");
         }
-        env.storage().persistent().set(&DataKey::AuthorizedOracle(oracle), &true);
+        env.storage()
+            .persistent()
+            .set(&DataKey::AuthorizedOracle(oracle), &true);
     }
 
     /// Remove an authorized oracle (only admin)
@@ -46,12 +48,17 @@ impl OracleRegistry {
         if admin != stored_admin {
             panic!("Unauthorized");
         }
-        env.storage().persistent().remove(&DataKey::AuthorizedOracle(oracle));
+        env.storage()
+            .persistent()
+            .remove(&DataKey::AuthorizedOracle(oracle));
     }
 
     /// Check if an oracle is authorized
     pub fn is_oracle_authorized(env: Env, oracle: Address) -> bool {
-        env.storage().persistent().get(&DataKey::AuthorizedOracle(oracle)).unwrap_or(false)
+        env.storage()
+            .persistent()
+            .get(&DataKey::AuthorizedOracle(oracle))
+            .unwrap_or(false)
     }
 }
 

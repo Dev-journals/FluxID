@@ -78,17 +78,16 @@ export default function TransferPage() {
         network === "mainnet" ? StellarSdk.Networks.PUBLIC : StellarSdk.Networks.TESTNET
       );
       
-      // Submit requires casting as any due to version mismatches or just passing it raw
-      const response = await server.submitTransaction(signedTx as any);
+      const response = await server.submitTransaction(signedTx);
       
       setStatus("success");
       setTxHash(response.hash);
       setAmount("");
       showToast("Transaction successful!", "success");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setStatus("error");
-      let errMsg = err.message || "Failed to submit transaction.";
+      let errMsg = err instanceof Error ? err.message : "Failed to submit transaction.";
       
       if (errMsg.toLowerCase().includes("underfunded") || errMsg.toLowerCase().includes("insufficient balance") || errMsg.toLowerCase().includes("op_underfunded")) {
         errMsg = "Insufficient balance to execute this transaction.";
@@ -237,7 +236,7 @@ export default function TransferPage() {
               Connected Wallet
             </h3>
             <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
-              When you click "Sign & Send", your Freighter wallet extension will pop up. 
+              When you click &quot;Sign &amp; Send&quot;, your Freighter wallet extension will pop up. 
               Review the transaction details and approve it. No private keys ever leave your browser.
             </p>
             {!isConnected && (

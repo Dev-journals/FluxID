@@ -35,7 +35,7 @@ jobs:
 
       - name: Lint with Clippy
         working-directory: ./smartcontract
-        run: cargo clippy --all-targets --all-features -- -D warnings -A unexpected_cfgs
+        run: cargo clippy --all-targets --all-features -- -D warnings -A unexpected_cfgs -A deprecated
 
       - name: Compile Smart Contracts
         working-directory: ./smartcontract

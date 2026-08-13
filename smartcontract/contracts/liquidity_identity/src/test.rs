@@ -21,16 +21,16 @@ fn setup() -> (Env, Address, Address) {
     let env = Env::default();
     let admin = Address::generate(&env);
     let contract_id = env.register(LiquidityIdentity, ());
-    
+
     // Register mock oracle registry
     let registry_id = env.register(MockOracleRegistry, ());
-    
+
     // Initialize the main contract
     let client = LiquidityIdentityClient::new(&env, &contract_id);
     env.mock_all_auths();
     client.init(&admin, &symbol_short!("testnet"));
     client.set_oracle_registry(&admin, &registry_id);
-    
+
     (env, admin, contract_id)
 }
 
@@ -92,9 +92,27 @@ fn test_risk_level_mapping() {
     let wallet2 = Address::generate(&env);
     let wallet3 = Address::generate(&env);
 
-    client.set_score(&admin, &wallet1, &85, &RiskLevel::Low, &dummy_hash(&env, 0x01));
-    client.set_score(&admin, &wallet2, &55, &RiskLevel::Medium, &dummy_hash(&env, 0x02));
-    client.set_score(&admin, &wallet3, &25, &RiskLevel::High, &dummy_hash(&env, 0x03));
+    client.set_score(
+        &admin,
+        &wallet1,
+        &85,
+        &RiskLevel::Low,
+        &dummy_hash(&env, 0x01),
+    );
+    client.set_score(
+        &admin,
+        &wallet2,
+        &55,
+        &RiskLevel::Medium,
+        &dummy_hash(&env, 0x02),
+    );
+    client.set_score(
+        &admin,
+        &wallet3,
+        &25,
+        &RiskLevel::High,
+        &dummy_hash(&env, 0x03),
+    );
 
     assert_eq!(client.get_risk(&wallet1), Some(RiskLevel::Low));
     assert_eq!(client.get_risk(&wallet2), Some(RiskLevel::Medium));
@@ -109,7 +127,13 @@ fn test_transfer_admin() {
     let client = LiquidityIdentityClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
-    client.set_score(&admin, &wallet, &70, &RiskLevel::Low, &dummy_hash(&env, 0x70));
+    client.set_score(
+        &admin,
+        &wallet,
+        &70,
+        &RiskLevel::Low,
+        &dummy_hash(&env, 0x70),
+    );
 
     let new_admin = Address::generate(&env);
     client.transfer_admin(&admin, &new_admin);
@@ -129,9 +153,27 @@ fn test_multiple_wallets() {
     let wallet2 = Address::generate(&env);
     let wallet3 = Address::generate(&env);
 
-    client.set_score(&admin, &wallet1, &90, &RiskLevel::Low, &dummy_hash(&env, 0x90));
-    client.set_score(&admin, &wallet2, &50, &RiskLevel::Medium, &dummy_hash(&env, 0x50));
-    client.set_score(&admin, &wallet3, &30, &RiskLevel::High, &dummy_hash(&env, 0x30));
+    client.set_score(
+        &admin,
+        &wallet1,
+        &90,
+        &RiskLevel::Low,
+        &dummy_hash(&env, 0x90),
+    );
+    client.set_score(
+        &admin,
+        &wallet2,
+        &50,
+        &RiskLevel::Medium,
+        &dummy_hash(&env, 0x50),
+    );
+    client.set_score(
+        &admin,
+        &wallet3,
+        &30,
+        &RiskLevel::High,
+        &dummy_hash(&env, 0x30),
+    );
 
     assert_eq!(client.get_score(&wallet1), 90);
     assert_eq!(client.get_score(&wallet2), 50);
@@ -146,7 +188,13 @@ fn test_last_updated_timestamp() {
     let client = LiquidityIdentityClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
-    client.set_score(&admin, &wallet, &75, &RiskLevel::Low, &dummy_hash(&env, 0x75));
+    client.set_score(
+        &admin,
+        &wallet,
+        &75,
+        &RiskLevel::Low,
+        &dummy_hash(&env, 0x75),
+    );
 
     let timestamp = client.get_last_updated(&wallet);
     assert!(timestamp.is_some());
@@ -171,7 +219,13 @@ fn test_get_wallet_info() {
     let client = LiquidityIdentityClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
-    client.set_score(&admin, &wallet, &82, &RiskLevel::Low, &dummy_hash(&env, 0x82));
+    client.set_score(
+        &admin,
+        &wallet,
+        &82,
+        &RiskLevel::Low,
+        &dummy_hash(&env, 0x82),
+    );
 
     let info = client.get_wallet_info(&wallet);
     assert!(info.is_some());

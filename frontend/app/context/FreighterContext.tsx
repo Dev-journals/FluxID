@@ -102,9 +102,9 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
       showToast(`Connected to wallet`, "success");
       // Best-effort usage log — proof of a real wallet interaction. Never blocks connect.
       void logEvent("wallet_connect", address, "testnet");
-    } catch (err: any) {
+    } catch (err) {
       console.error("Wallet selection error:", err);
-      let errMsg = err.message || "Failed to connect to wallet.";
+      let errMsg = err instanceof Error ? err.message : "Failed to connect to wallet.";
       
       if (errMsg.toLowerCase().includes("reject") || errMsg.toLowerCase().includes("decline") || errMsg.toLowerCase().includes("cancel")) {
         errMsg = "Wallet connection rejected by user.";

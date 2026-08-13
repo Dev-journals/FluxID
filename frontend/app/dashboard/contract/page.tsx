@@ -122,11 +122,11 @@ export default function ContractPage() {
 
       setWriteStatus("success");
       setWriteResult(`Transaction submitted! Hash: ${response.hash}`);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Write error", err);
       setWriteStatus("error");
       
-      let errMsg = err.message || "Failed to write to contract.";
+      let errMsg = err instanceof Error ? err.message : "Failed to write to contract.";
       if (errMsg.toLowerCase().includes("rejected")) {
         errMsg = "Transaction was rejected by wallet.";
       } else if (errMsg.includes("Unauthorized") || errMsg.includes("HostError: Error(WasmVm, InvalidAction)")) {

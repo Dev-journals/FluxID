@@ -81,7 +81,7 @@ export default function Feedback() {
                     Send feedback
                   </h2>
                   <p style={{ color: "var(--foreground-muted)", fontSize: 13 }}>
-                    Tell us what's working and what isn't.
+                    Tell us what&apos;s working and what isn&apos;t.
                   </p>
                 </div>
                 <button

@@ -98,7 +98,7 @@ export async function requestPaidScore(
 }
 
 export async function signAndSubmitChallenge(
-  kit: any, // We type as any or StellarWalletsKit.
+  kit: { signTransaction: (xdr: string, opts?: { networkPassphrase?: string; address?: string; path?: string }) => Promise<{ signedTxXdr: string }> },
   sourcePublicKey: string,
   challenge: PaymentChallenge
 ): Promise<{ txHash: string }> {

@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec, Bytes, BytesN};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol, Vec};
 
 #[contracttype]
 pub enum DataKey {
@@ -61,7 +61,9 @@ impl LiquidityIdentity {
         if admin != stored_admin {
             panic!("Unauthorized");
         }
-        env.storage().instance().set(&DataKey::OracleRegistryId, &registry_id);
+        env.storage()
+            .instance()
+            .set(&DataKey::OracleRegistryId, &registry_id);
     }
 
     /// Store a score on-chain. Requires authorization from the OracleRegistry.

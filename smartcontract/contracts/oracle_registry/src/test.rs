@@ -17,7 +17,7 @@ fn test_init_sets_admin() {
     let (env, admin, client) = setup();
     // A freshly initialized registry authorizes nobody yet.
     let random = Address::generate(&env);
-    assert_eq!(client.is_oracle_authorized(&random), false);
+    assert!(!client.is_oracle_authorized(&random));
     // Admin is stored (re-init would panic — covered separately).
     let _ = admin;
 }
@@ -34,9 +34,9 @@ fn test_double_init_panics() {
 fn test_add_oracle_authorizes() {
     let (env, _admin, client) = setup();
     let oracle = Address::generate(&env);
-    assert_eq!(client.is_oracle_authorized(&oracle), false);
+    assert!(!client.is_oracle_authorized(&oracle));
     client.add_oracle(&_admin, &oracle);
-    assert_eq!(client.is_oracle_authorized(&oracle), true);
+    assert!(client.is_oracle_authorized(&oracle));
 }
 
 #[test]
@@ -44,9 +44,9 @@ fn test_remove_oracle_revokes() {
     let (env, admin, client) = setup();
     let oracle = Address::generate(&env);
     client.add_oracle(&admin, &oracle);
-    assert_eq!(client.is_oracle_authorized(&oracle), true);
+    assert!(client.is_oracle_authorized(&oracle));
     client.remove_oracle(&admin, &oracle);
-    assert_eq!(client.is_oracle_authorized(&oracle), false);
+    assert!(!client.is_oracle_authorized(&oracle));
 }
 
 #[test]
@@ -56,8 +56,8 @@ fn test_multiple_oracles_isolated() {
     let oracle_b = Address::generate(&env);
     client.add_oracle(&admin, &oracle_a);
     // Only oracle_a is authorized; oracle_b remains untrusted.
-    assert_eq!(client.is_oracle_authorized(&oracle_a), true);
-    assert_eq!(client.is_oracle_authorized(&oracle_b), false);
+    assert!(client.is_oracle_authorized(&oracle_a));
+    assert!(!client.is_oracle_authorized(&oracle_b));
 }
 
 #[test]
