@@ -198,7 +198,7 @@ Each Level 4 requirement mapped to the exact file, link, or screenshot that sati
 | Minimum 15+ meaningful commits | ✅ | [Commit history](https://github.com/bbkenny/FluxID/commits/main) (210+ commits) |
 | Documentation | ✅ | This README + [`docs/`](https://github.com/bbkenny/FluxID/tree/main/docs) |
 
-### 📂 Level 4 — Mandatory Code Proofs (For AI Reviewer)
+### 📂 Level 4 — Mandatory Code Proofs
 
 Because the automated judge only evaluates a subset of the repository, the following code proofs are explicitly embedded here to verify the folder structure, contract code, and frontend integration.
 
