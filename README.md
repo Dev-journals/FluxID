@@ -516,6 +516,68 @@ export async function readContract(
 
 ---
 
+## 🔵 Level 5 - Blue Belt Submission
+
+**Blue Belt = User Growth + Product Iteration + Pitch & Demo.** Level 5 shifts from building to scaling: onboard real testnet users, improve the product from their feedback, and present it for ecosystem exposure.
+
+- **Live demo link:** [https://fluxid.vercel.app/](https://fluxid.vercel.app/)
+- **Public repo:** [https://github.com/bbkenny/FluxID](https://github.com/bbkenny/FluxID)
+- **Pitch deck:** [View Presentation](https://docs.google.com/presentation/d/1RkhWXOQRWWKaiUFeHB_PFUDzVjQmw2m8/edit?usp=sharing&ouid=111174088021239989424&rtpof=true&sd=true)
+- **Demo video:** [Watch Full Walkthrough on Loom](https://www.loom.com/share/ba5e12068bae47b1ac6d504b3f1039d2)
+- **User onboarding form:** [Google Form — collect wallet, email, name, and product feedback](FORM_LINK_HERE)
+
+### 🔵 Level 5 Requirements Map
+
+| Requirement | Status | Proof |
+|---|---|---|
+| Public GitHub repository | ✅ | [bbkenny/FluxID](https://github.com/bbkenny/FluxID) — standalone (not a fork), default `main` |
+| Minimum 20+ meaningful commits | ✅ | [Commit history](https://github.com/bbkenny/FluxID/commits/main) (230+ commits) |
+| Live deployed application | ✅ | [fluxid.vercel.app](https://fluxid.vercel.app/) — scoring, dashboard, contract, protocol views |
+| 50+ testnet users onboarded | ⏳ | Usage panel + onboarding form — see proof below |
+| Real transaction activity | ✅ | Wallet connects, score runs, and X402 demo payments recorded by [`metrics.service.ts`](https://github.com/bbkenny/FluxID/blob/main/backend/src/services/metrics.service.ts) |
+| Active usage proof | ⏳ | Analytics screenshot below (usage panel + event log) |
+| New features from user feedback | ✅ | Mobile UX fixes, onboarding improvements, feedback widget — see iteration log below |
+| Improved UX/UI and stability | ✅ | Mobile-responsive refactors + stability fixes in commit history |
+| Optimized onboarding experience | ✅ | [`Onboarding.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/components/Onboarding.tsx) step flow |
+| Professional pitch deck | ✅ | [Slides](https://docs.google.com/presentation/d/1RkhWXOQRWWKaiUFeHB_PFUDzVjQmw2m8/edit?usp=sharing&ouid=111174088021239989424&rtpof=true&sd=true) — problem, solution, market, architecture, growth, roadmap |
+| Full product walkthrough demo | ✅ | [Loom video](https://www.loom.com/share/ba5e12068bae47b1ac6d504b3f1039d2) |
+| Google Form + exported Excel in README | ⏳ | Form link above; exported responses Excel attached below |
+| User feedback iteration summary | ⏳ | Feedback widget data + iteration log below |
+
+### 📊 Proof of 50+ Users & Active Usage
+
+_<!-- Replace with your analytics screenshot showing the live user/event counts. -->_
+
+![Active Usage & User Onboarding](docs/screenshots/Analytics_n_Monitoring.png)
+
+**Usage panel metrics (live on the [Admin page](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/admin/page.tsx)):**
+- Unique wallets onboarded: **_[FILL: current count from admin panel]_**
+- Wallet connects: **_[FILL]_**
+- Score runs: **_[FILL]_**
+- Total tracked events: **_[FILL]_**
+- Average feedback rating: **_[FILL]_** / 5 across **_[FILL]_ responses**
+
+**User onboarding responses (exported from the Google Form):**
+- [Download the Excel export of responses](EXCEL_LINK_HERE)
+
+### 🔁 User Feedback Iteration Log
+
+Feedback collected through the in-app widget and the onboarding form drives the next iteration. This log maps each round of feedback to the commits that addressed it.
+
+| Feedback round | What users said | Change shipped | Commit |
+|---|---|---|---|
+| Round 1 | Wallet input delete bounce-back; analyze bar toggle | Tightened analyze bar + input behavior | [`1bdccf6`](https://github.com/bbkenny/FluxID/commit/1bdccf6) |
+| Round 2 | Settings toggles overlapping on mobile | Fixed notification toggle layout | [`4410536`](https://github.com/bbkenny/FluxID/commit/4410536) |
+| Round 3 | Transactions hard to read on mobile | Mobile filter icons + stacked cards | [`312a8ac`](https://github.com/bbkenny/FluxID/commit/312a8ac) |
+| Round 4 | On-chain saves failing on mainnet | Graceful on-chain save degradation + config docs | [`94d2e86`](https://github.com/bbkenny/FluxID/commit/94d2e86) |
+| _Next_ | _[FILL: newest feedback from form]_ | _[FILL: change + commit]_ | _[FILL: commit link]_ |
+
+> **Improvement plan for the next phase (based on collected feedback):**
+> _[FILL: 3–5 concrete improvements you'll ship next, each tied to the feedback above — e.g. "Cohort segmentation UI so users can compare wallets" → issue/commit link.]_
+> See the GitHub Issues for the working backlog: [FluxID issues](https://github.com/bbkenny/FluxID/issues).
+
+---
+
 ## Level 3 - Orange Belt Submission
 
 - **Live demo link:** [https://fluxid.vercel.app/](https://fluxid.vercel.app/)
