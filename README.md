@@ -191,8 +191,8 @@ Each Level 4 requirement mapped to the exact file, link, or screenshot that sati
 | Monitoring & analytics integration | ✅ | Vercel [`Analytics`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/layout.tsx) + Speed Insights, plus a self-hosted usage panel on the [Admin page](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/admin/page.tsx) fed by [`metrics.service.ts`](https://github.com/bbkenny/FluxID/blob/main/backend/src/services/metrics.service.ts) |
 | Usage / event tracking | ✅ | `logEvent("wallet_connect")` in [`FreighterContext.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/context/FreighterContext.tsx#L104) and `logEvent("score_run")` in [`AnalysisContext.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/context/AnalysisContext.tsx#L78) → `POST /events` |
 | User feedback collection | ✅ | Floating widget [`Feedback.tsx`](https://github.com/bbkenny/FluxID/blob/main/frontend/app/components/Feedback.tsx) → `POST /feedback`; summary on the Admin page |
-| 10+ real user wallet interactions | ⏳ | Captured via the usage panel — screenshot below _<!-- add 10+ wallet proof screenshot -->_ |
-| Basic user feedback summary | ⏳ | Admin feedback panel (avg rating + messages) — screenshot below _<!-- add feedback summary screenshot -->_ |
+| 10+ real user wallet interactions | ✅ | [`Wallet_Interactions_Proof.png`](docs/screenshots/Wallet_Interactions_Proof.png) |
+| Basic user feedback summary | ✅ | [`Feedback_Summary.png`](docs/screenshots/Feedback_Summary.png) |
 | Production deployment | ✅ | Frontend on Vercel; backend on Render (see [`DEPLOYMENT_PERSISTENCE.md`](DEPLOYMENT_PERSISTENCE.md) for durable-storage setup) |
 | Smart contracts on Stellar testnet | ✅ | `CAUICITFNLDMHPXARAXARFBS3JKRGZZP5CE7B4DTLFBCJB5F4U24CKBP` + oracle registry |
 | Minimum 15+ meaningful commits | ✅ | [Commit history](https://github.com/bbkenny/FluxID/commits/main) (210+ commits) |
@@ -524,7 +524,7 @@ export async function readContract(
 - **Public repo:** [https://github.com/bbkenny/FluxID](https://github.com/bbkenny/FluxID)
 - **Pitch deck:** [View Presentation](https://docs.google.com/presentation/d/1RkhWXOQRWWKaiUFeHB_PFUDzVjQmw2m8/edit?usp=sharing&ouid=111174088021239989424&rtpof=true&sd=true)
 - **Demo video:** [Watch Full Walkthrough on Loom](https://www.loom.com/share/ba5e12068bae47b1ac6d504b3f1039d2)
-- **User onboarding form:** [Google Form — collect wallet, email, name, and product feedback](FORM_LINK_HERE)
+- **User onboarding form:** [Google Form — collect wallet, email, name, and product feedback](https://forms.gle/kLYwDRdJo8WV1RTE7)
 
 ### 🔵 Level 5 Requirements Map
 
@@ -546,8 +546,6 @@ export async function readContract(
 
 ### 📊 Proof of 50+ Users & Active Usage
 
-_<!-- Replace with your analytics screenshot showing the live user/event counts. -->_
-
 ![Active Usage & User Onboarding](docs/screenshots/Analytics_n_Monitoring.png)
 
 **Usage panel metrics (live on the [Admin page](https://github.com/bbkenny/FluxID/blob/main/frontend/app/dashboard/admin/page.tsx)):**
@@ -558,7 +556,7 @@ _<!-- Replace with your analytics screenshot showing the live user/event counts.
 - Average feedback rating: **_[FILL]_** / 5 across **_[FILL]_ responses**
 
 **User onboarding responses (exported from the Google Form):**
-- [Download the Excel export of responses](EXCEL_LINK_HERE)
+- [Download the Excel export of responses](https://docs.google.com/spreadsheets/d/1-2pPmXcKUCmjSmEV9GspY71KvZulfpFL7Getej4Noq8/edit?usp=sharing)
 
 ### 🔁 User Feedback Iteration Log
 
