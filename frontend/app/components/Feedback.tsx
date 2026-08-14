@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquarePlus, Star, X, Send } from "lucide-react";
 import { useFreighter } from "../context/FreighterContext";
 import { useToast } from "./Toast";
 import { submitFeedback } from "../../lib/metricsApi";
+
+// Custom event name other components dispatch to open this modal (e.g. the
+// dashboard "Join Beta" CTA). Kept decoupled so no prop-drilling is needed.
+export const OPEN_FEEDBACK_EVENT = "fluxid:open-feedback";
 
 // App-wide feedback widget: a floating button that opens a rating + message
 // modal and posts to the backend /feedback endpoint. Mounted once in
@@ -19,6 +23,12 @@ export default function Feedback() {
   const [hover, setHover] = useState(0);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const open = () => setOpen(true);
+    window.addEventListener(OPEN_FEEDBACK_EVENT, open);
+    return () => window.removeEventListener(OPEN_FEEDBACK_EVENT, open);
+  }, []);
 
   const reset = () => {
     setRating(0);
