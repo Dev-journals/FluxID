@@ -1,0 +1,9 @@
+{
+    "success": false,
+    "data": {
+        "accountId": "GBPIMUEJFYS7RT23QO2ACH2JMKGXLXZI4E5ACBSQMF32RKZ5H3SVNL5F",
+        "score": 7,
+        "risk": "High",
+        "error": "getaddrinfo ENOTFOUND rpc.testnet.stellar.org"
+    }
+}
