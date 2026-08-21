@@ -1,0 +1,72 @@
+name: FluxID PR Protocol
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  protocol-gate:
+    name: Protocol Gate
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      AUTHOR: ${{ github.event.pull_request.user.login }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for Workflow Tampering
+        run: |
+          AUTHOR_ROLE=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER -q .author_association)
+          if [[ "$AUTHOR_ROLE" != "OWNER" && "$AUTHOR_ROLE" != "MEMBER" && "$AUTHOR_ROLE" != "COLLABORATOR" ]]; then
+            CHANGED_FILES=$(gh pr view $PR_NUMBER --json files -q '.files[].path')
+            if echo "$CHANGED_FILES" | grep -qE "^.github/|^\.gitignore"; then
+              gh pr comment $PR_NUMBER --body "Automated notice: external contributors may not modify \`.github/\` or \`.gitignore\`. Please revert those changes so review can proceed."
+              exit 1
+            fi
+          fi
+
+      - name: Check for Issue Link
+        run: |
+          PR_BODY=$(gh pr view $PR_NUMBER --json body -q .body)
+          if ! echo "$PR_BODY" | grep -Eiq "(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved) #[0-9]+"; then
+            gh pr comment $PR_NUMBER --body "Thanks for the PR! Please link the issue it resolves in the description using \`Closes #ISSUE_NUMBER\` so we can track it."
+            exit 1
+          fi
+
+      - name: Check Issue Assignment
+        run: |
+          PR_BODY=$(gh pr view $PR_NUMBER --json body -q .body)
+          ISSUE_NUM=$(echo "$PR_BODY" | grep -oEi "(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved) #[0-9]+" | head -n1 | grep -oE "[0-9]+")
+
+          if ! gh issue view "$ISSUE_NUM" --json state,title,assignees > /tmp/issue.json 2>/dev/null; then
+            echo "Could not read linked issue #$ISSUE_NUM (may not exist)."
+            exit 1
+          fi
+
+          STATE=$(jq -r .state /tmp/issue.json)
+          if [ "$STATE" != "OPEN" ]; then
+            gh pr review $PR_NUMBER --request-changes -b "The linked issue #$ISSUE_NUM is \`$STATE\`. Please link an open issue."
+            exit 1
+          fi
+
+          ASSIGNEES=$(jq -r '[.assignees[].login] | join(",")' /tmp/issue.json)
+          if [ -z "$ASSIGNEES" ] || ! echo ",$ASSIGNEES," | grep -q ",${{ env.AUTHOR }},"; then
+            gh pr review $PR_NUMBER --request-changes -b "Issue #$ISSUE_NUM is not assigned to you. Please get yourself assigned before submitting work."
+            exit 1
+          fi
+
+      - name: Check for Merge Conflicts
+        run: |
+          MERGEABLE=$(gh pr view $PR_NUMBER --json mergeable -q .mergeable)
+          if [ "$MERGEABLE" == "CONFLICTING" ]; then
+            gh pr comment $PR_NUMBER --body "This PR has merge conflicts with the base branch. Please resolve them so checks can run."
+            exit 1
+          fi
