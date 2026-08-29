@@ -1,26 +1,14 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { BarChart3 } from "lucide-react";
 import { useAnalysis } from "../context/AnalysisContext";
 import FlowChart from "../../components/FlowChart";
 import FlowSummary from "../../components/FlowSummary";
 import AssetBreakdown from "../../components/AssetBreakdown";
+import { useXlmPrice } from "../../../lib/useXlmPrice";
 import type { TransactionData, UsdValuation } from "../../../lib/scoring";
-
-const COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd";
-
-async function fetchXlmPrice(): Promise<number | null> {
-  try {
-    const res = await fetch(COINGECKO_URL, { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { stellar?: { usd?: number } };
-    return data?.stellar?.usd ?? null;
-  } catch {
-    return null;
-  }
-}
 
 function classifyAsset(asset: string | undefined): "XLM" | "USDC" | "OTHER" {
   if (!asset || asset === "XLM" || asset === "native") return "XLM";
@@ -120,17 +108,9 @@ function fmtUsd(n: number): string {
 
 export default function AnalyticsPage() {
   const { analysis, isAnalyzing } = useAnalysis();
-  const [frontendPrice, setFrontendPrice] = useState<number | null>(null);
-
-  // Fetch XLM price from frontend if backend didn't provide it
-  useEffect(() => {
-    if (!analysis?.usd?.xlmPriceUsd) {
-      fetchXlmPrice().then(setFrontendPrice);
-    }
-  }, [analysis?.usd?.xlmPriceUsd]);
+  const xlmPrice = useXlmPrice(analysis?.usd);
 
   const txs = analysis?.transactions ?? [];
-  const xlmPrice = analysis?.usd?.xlmPriceUsd ?? frontendPrice;
 
   const weekly = useMemo(() => buildWeeklyTrend(txs, xlmPrice), [txs, xlmPrice]);
   const volatility = useMemo(() => computeVolatility(txs, xlmPrice), [txs, xlmPrice]);
@@ -184,6 +164,30 @@ export default function AnalyticsPage() {
       )}
     </>
   );
+}
+
+function formatWeekLabel(weekStart: string, allWeeks: WeeklyBucket[]): string {
+  // weekStart is YYYY-MM-DD. Normally show MM-DD, but when the data spans a
+  // year boundary, prefix the year on the first week of each new year so
+  // labels like "12-29" and "01-05" are never ambiguous side-by-side.
+  const years = new Set(allWeeks.map((w) => w.weekStart.slice(0, 4)));
+  if (years.size <= 1) {
+    // All weeks in the same year — short label is fine.
+    return weekStart.slice(5);
+  }
+  // Multiple years present — show year only on the first week of each year.
+  const thisYear = weekStart.slice(0, 4);
+  const thisIndex = allWeeks.findIndex((w) => w.weekStart === weekStart);
+  const prevYear = thisIndex > 0 ? allWeeks[thisIndex - 1].weekStart.slice(0, 4) : null;
+  if (prevYear !== thisYear) {
+    // Year boundary — show "Jan 5 '26" style label
+    const [, mm, dd] = weekStart.split("-");
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const monthName = monthNames[parseInt(mm, 10) - 1];
+    const yearShort = thisYear.slice(2);
+    return `${monthName} ${parseInt(dd, 10)} '${yearShort}`;
+  }
+  return weekStart.slice(5);
 }
 
 function WeeklyTrend({
@@ -241,7 +245,7 @@ function WeeklyTrend({
                     />
                   </div>
                   <span style={{ color: "var(--foreground-dim)", fontSize: 10 }}>
-                    {w.weekStart.slice(5)}
+                    {formatWeekLabel(w.weekStart, weekly)}
                   </span>
                 </div>
               );

@@ -1,22 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { TransactionData, UsdValuation } from "../../lib/scoring";
-
-const COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd";
-
-// Fetch XLM price from CoinGecko (frontend fallback)
-async function fetchXlmPrice(): Promise<number | null> {
-  try {
-    const res = await fetch(COINGECKO_URL, { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { stellar?: { usd?: number } };
-    return data?.stellar?.usd ?? null;
-  } catch {
-    return null;
-  }
-}
+import { useXlmPrice } from "../../lib/useXlmPrice";
 
 interface FlowChartProps {
   transactions: TransactionData[];
@@ -48,14 +34,7 @@ function txToUsd(
 }
 
 export default function FlowChart({ transactions, usd, isLoading, className = "" }: FlowChartProps) {
-  const [frontendPrice, setFrontendPrice] = useState<number | null>(null);
-
-  // Fetch XLM price from frontend if backend didn't provide it
-  useEffect(() => {
-    if (!usd?.xlmPriceUsd) {
-      fetchXlmPrice().then(setFrontendPrice);
-    }
-  }, [usd?.xlmPriceUsd]);
+  const xlmPrice = useXlmPrice(usd);
 
   if (isLoading) {
     return (
@@ -83,9 +62,9 @@ export default function FlowChart({ transactions, usd, isLoading, className = ""
     );
   }
 
-  const xlmPrice = usd?.xlmPriceUsd ?? frontendPrice;
   const canShowUsd = xlmPrice !== null;
 
+  // Build a map of date → flow totals from actual transactions
   const groupedByDate: Record<string, { inflow: number; outflow: number; skipped: number }> = {};
 
   for (const tx of transactions) {
@@ -99,12 +78,29 @@ export default function FlowChart({ transactions, usd, isLoading, className = ""
     else bucket.outflow += usdValue;
   }
 
-  const sortedDates = Object.keys(groupedByDate).sort().slice(-7);
+  // Always render exactly the last 7 calendar days so the chart title
+  // "7-Day Flow Pattern" is accurate — days with no transactions show as
+  // zero-height bars rather than being silently omitted.
+  const today = new Date();
+  const last7Days: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    last7Days.push(d.toISOString().slice(0, 10));
+  }
+
+  // Merge transaction data into the fixed 7-day window — empty days get zeros.
+  const chartDates = last7Days;
+  const chartData = chartDates.map((date) => ({
+    date,
+    ...(groupedByDate[date] ?? { inflow: 0, outflow: 0, skipped: 0 }),
+  }));
+
   const maxValue = Math.max(
-    ...sortedDates.map((d) => groupedByDate[d].inflow + groupedByDate[d].outflow),
+    ...chartData.map((d) => d.inflow + d.outflow),
     1
   );
-  const totalSkipped = sortedDates.reduce((sum, d) => sum + groupedByDate[d].skipped, 0);
+  const totalSkipped = chartData.reduce((sum, d) => sum + d.skipped, 0);
 
   return (
     <motion.div
@@ -123,30 +119,32 @@ export default function FlowChart({ transactions, usd, isLoading, className = ""
       </div>
 
       <div className="flex items-end justify-between gap-2 h-40">
-        {sortedDates.map((date) => {
-          const { inflow, outflow } = groupedByDate[date];
+        {chartData.map(({ date, inflow, outflow }) => {
           const dateLabel = date.slice(5);
+          const isEmpty = inflow === 0 && outflow === 0;
 
           return (
             <div key={date} className="flex-1 flex flex-col items-center gap-2">
               <div className="w-full flex items-end gap-1 h-36">
                 <div
                   style={{
-                    height: `${(inflow / maxValue) * 100}%`,
-                    background: "#22c55e",
+                    height: isEmpty ? "2px" : `${(inflow / maxValue) * 100}%`,
+                    background: isEmpty ? "var(--border)" : "#22c55e",
                     borderRadius: 2,
+                    opacity: isEmpty ? 0.4 : 1,
                   }}
                   className="flex-1"
-                  title={`Inflow ${date}: $${inflow.toFixed(2)}`}
+                  title={isEmpty ? `${date}: no activity` : `Inflow ${date}: $${inflow.toFixed(2)}`}
                 />
                 <div
                   style={{
-                    height: `${(outflow / maxValue) * 100}%`,
-                    background: "#ef4444",
+                    height: isEmpty ? "2px" : `${(outflow / maxValue) * 100}%`,
+                    background: isEmpty ? "var(--border)" : "#ef4444",
                     borderRadius: 2,
+                    opacity: isEmpty ? 0.4 : 1,
                   }}
                   className="flex-1"
-                  title={`Outflow ${date}: $${outflow.toFixed(2)}`}
+                  title={isEmpty ? `${date}: no activity` : `Outflow ${date}: $${outflow.toFixed(2)}`}
                 />
               </div>
               <span style={{ color: "var(--foreground-dim)", fontSize: 10 }}>{dateLabel}</span>
