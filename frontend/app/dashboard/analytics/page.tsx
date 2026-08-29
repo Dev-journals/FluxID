@@ -167,27 +167,17 @@ export default function AnalyticsPage() {
 }
 
 function formatWeekLabel(weekStart: string, allWeeks: WeeklyBucket[]): string {
-  // weekStart is YYYY-MM-DD. Normally show MM-DD, but when the data spans a
-  // year boundary, prefix the year on the first week of each new year so
-  // labels like "12-29" and "01-05" are never ambiguous side-by-side.
+  // weekStart is YYYY-MM-DD (Monday). Normally show MM-DD.
+  // When the chart spans a year boundary, show MM-DD-YYYY on every label
+  // so "12-29-2025" and "01-05-2026" are never ambiguous side-by-side.
   const years = new Set(allWeeks.map((w) => w.weekStart.slice(0, 4)));
   if (years.size <= 1) {
-    // All weeks in the same year — short label is fine.
+    // All weeks in the same year — short MM-DD label is unambiguous.
     return weekStart.slice(5);
   }
-  // Multiple years present — show year only on the first week of each year.
-  const thisYear = weekStart.slice(0, 4);
-  const thisIndex = allWeeks.findIndex((w) => w.weekStart === weekStart);
-  const prevYear = thisIndex > 0 ? allWeeks[thisIndex - 1].weekStart.slice(0, 4) : null;
-  if (prevYear !== thisYear) {
-    // Year boundary — show "Jan 5 '26" style label
-    const [, mm, dd] = weekStart.split("-");
-    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const monthName = monthNames[parseInt(mm, 10) - 1];
-    const yearShort = thisYear.slice(2);
-    return `${monthName} ${parseInt(dd, 10)} '${yearShort}`;
-  }
-  return weekStart.slice(5);
+  // Multiple years present — show full MM-DD-YYYY on every label.
+  const [yyyy, mm, dd] = weekStart.split("-");
+  return `${mm}-${dd}-${yyyy}`;
 }
 
 function WeeklyTrend({
