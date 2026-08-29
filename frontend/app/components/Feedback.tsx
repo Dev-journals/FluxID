@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquarePlus, Star, X, Send } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useFreighter } from "../context/FreighterContext";
 import { useToast } from "./Toast";
 import { submitFeedback } from "../../lib/metricsApi";
@@ -15,8 +16,10 @@ export const OPEN_FEEDBACK_EVENT = "fluxid:open-feedback";
 // modal and posts to the backend /feedback endpoint. Mounted once in
 // ClientLayout so it's available on every route.
 export default function Feedback() {
+  const pathname = usePathname();
   const { publicKey } = useFreighter();
   const { showToast } = useToast();
+  const onSettingsPage = pathname === "/dashboard/settings";
 
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState(0);
@@ -63,7 +66,9 @@ export default function Feedback() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Send feedback"
-        className="fixed right-4 bottom-24 lg:bottom-6 z-40 flex items-center gap-2 card-primary px-4 py-3 rounded-full font-bold text-[var(--background)] shadow-2xl hover:opacity-90 transition-opacity"
+        className={`fixed right-4 z-40 flex items-center gap-2 card-primary px-4 py-3 rounded-full font-bold text-[var(--background)] shadow-2xl hover:opacity-90 transition-opacity ${
+          onSettingsPage ? "bottom-32 lg:bottom-28" : "bottom-24 lg:bottom-6"
+        }`}
       >
         <MessageSquarePlus size={18} />
         <span className="hidden sm:inline text-sm">Feedback</span>

@@ -62,10 +62,10 @@ export default function AnalyzeBar() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 mb-6"
+      className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 mb-6 overflow-hidden"
       id="tour-wallet-input"
     >
-      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 min-w-0">
         <input
           type="text"
           value={input}
@@ -76,11 +76,11 @@ export default function AnalyzeBar() {
           placeholder="Enter any Stellar wallet address (G...)"
           spellCheck={false}
           autoComplete="off"
-          className="w-full sm:flex-1 sm:min-w-[260px] px-4 py-3 rounded-xl bg-background border border-white/10 focus:border-primary outline-none text-sm font-mono"
+          className="w-full min-w-0 sm:flex-1 sm:min-w-[260px] px-4 py-3 rounded-xl bg-background border border-white/10 focus:border-primary outline-none text-sm font-mono"
         />
         {/* On mobile these two share a row (toggle left, Analyze right); on
             sm+ the wrapper dissolves so they flow inline with the input. */}
-        <div className="flex items-center justify-between gap-2 sm:gap-3 sm:contents">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:gap-3 sm:contents">
           <div
             className="bg-[var(--background)] border border-[var(--border)] flex items-center p-1 rounded-xl shrink-0"
             role="radiogroup"
@@ -107,9 +107,16 @@ export default function AnalyzeBar() {
           <button
             onClick={onAnalyze}
             disabled={isAnalyzing || !isValid}
-            className="btn btn-primary flex items-center justify-center gap-1.5 sm:gap-2 shrink-0 px-4 sm:px-5"
+            className="btn btn-primary flex flex-1 sm:flex-none min-w-0 items-center justify-center gap-1 sm:gap-2 px-3 sm:px-5 text-xs sm:text-sm"
           >
-            {isAnalyzing ? <AnalyzingButton /> : <><TrendingUp size={16} />Analyze</>}
+            {isAnalyzing ? (
+              <AnalyzingButton />
+            ) : (
+              <>
+                <TrendingUp size={16} className="shrink-0" />
+                <span className="truncate">Analyze</span>
+              </>
+            )}
           </button>
         </div>
       </div>

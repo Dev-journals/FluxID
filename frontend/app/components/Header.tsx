@@ -4,10 +4,11 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { useFreighter, truncateAddress } from "../context/FreighterContext";
-import { Wallet, LogOut, Bell, ChevronDown, Sun, Moon } from "lucide-react";
+import { Wallet, LogOut, Bell, ChevronDown, Sun, Moon, Monitor } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useRef, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
+import { useToast } from "./Toast";
 
 export default function Header() {
   const pathname = usePathname();
@@ -18,7 +19,8 @@ export default function Header() {
     connect,
     disconnect,
   } = useFreighter();
-  const { setTheme, resolvedTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { showToast } = useToast();
   // Client-mount guard for next-themes (avoids SSR hydration mismatch on the
   // theme icon) without a setState-in-effect. Returns false on the server and
   // during the first client render, true thereafter.
@@ -94,6 +96,19 @@ export default function Header() {
     };
   }, [isDropdownOpen, address, network]);
 
+  const handleThemeToggle = () => {
+    if (theme === "system") {
+      const next = resolvedTheme === "dark" ? "light" : "dark";
+      setTheme(next);
+      showToast(
+        `Switched to ${next} mode — System preference overridden`,
+        "info",
+      );
+      return;
+    }
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  };
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -8 }}
@@ -152,14 +167,23 @@ export default function Header() {
             {/* Theme Toggle */}
             {mounted && (
               <button
-                onClick={() =>
-                  setTheme(resolvedTheme === "dark" ? "light" : "dark")
+                onClick={handleThemeToggle}
+                aria-label={
+                  theme === "system"
+                    ? "System theme active — click to override"
+                    : "Toggle theme"
                 }
-                aria-label="Toggle theme"
+                title={
+                  theme === "system"
+                    ? "System theme — click to set light or dark"
+                    : undefined
+                }
                 style={{ color: "var(--foreground-muted)" }}
                 className="flex p-2 rounded-lg hover:bg-border transition-colors"
               >
-                {resolvedTheme === "dark" ? (
+                {theme === "system" ? (
+                  <Monitor size={18} />
+                ) : resolvedTheme === "dark" ? (
                   <Sun size={18} />
                 ) : (
                   <Moon size={18} />
@@ -300,21 +324,23 @@ export default function Header() {
                       </button>
                       {mounted && (
                         <button
-                          onClick={() =>
-                            setTheme(
-                              resolvedTheme === "dark" ? "light" : "dark",
-                            )
-                          }
+                          onClick={handleThemeToggle}
                           style={{ color: "var(--foreground-muted)" }}
                           className="p-2 rounded-lg hover:bg-surface transition-colors flex items-center gap-2"
                         >
-                          {resolvedTheme === "dark" ? (
+                          {theme === "system" ? (
+                            <Monitor size={16} />
+                          ) : resolvedTheme === "dark" ? (
                             <Sun size={16} />
                           ) : (
                             <Moon size={16} />
                           )}
                           <span className="text-xs font-semibold">
-                            {resolvedTheme === "dark" ? "Light" : "Dark"}
+                            {theme === "system"
+                              ? "System"
+                              : resolvedTheme === "dark"
+                                ? "Light"
+                                : "Dark"}
                           </span>
                         </button>
                       )}
