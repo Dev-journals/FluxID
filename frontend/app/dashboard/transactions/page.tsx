@@ -2,15 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownLeft, ArrowUpRight, Activity, Filter, ArrowLeftRight } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Activity, Filter, ArrowLeftRight, ExternalLink, Info } from "lucide-react";
 import { useAnalysis } from "../context/AnalysisContext";
 import { truncateAddress } from "../../context/FreighterContext";
 import type { TransactionData } from "../../../lib/scoring";
 
 type DirectionFilter = "all" | "inflow" | "outflow" | "swap";
 
-// "All" keeps its text on every screen; the three direction filters collapse to
-// icon-only on mobile so the row never outgrows the card.
 const FILTERS: { key: DirectionFilter; label: string; Icon: typeof ArrowDownLeft | null }[] = [
   { key: "all", label: "All", Icon: null },
   { key: "inflow", label: "Inflow", Icon: ArrowDownLeft },
@@ -22,11 +20,153 @@ function formatAmount(amount: number): string {
   return amount.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
-function assetLabel(asset: string): string {
+function assetCode(asset: string): string {
   if (!asset || asset === "XLM" || asset === "native") return "XLM";
-  const [code, issuer] = asset.split(":");
-  if (code === "USDC") return "USDC";
-  return issuer ? `${code}` : code;
+  const [code] = asset.split(":");
+  return code || asset;
+}
+
+export interface AssetMeta {
+  code: string;
+  issuer?: string;
+  domain?: string;
+  name?: string;
+  description?: string;
+  isStandard?: boolean;
+  stellarExpertUrl: string;
+}
+
+export function getAssetMeta(assetStr: string): AssetMeta {
+  if (!assetStr || assetStr === "XLM" || assetStr === "native") {
+    return {
+      code: "XLM",
+      name: "Stellar Lumens",
+      description: "Native token of the Stellar network",
+      isStandard: true,
+      stellarExpertUrl: "https://stellar.expert/explorer/public/asset/XLM",
+    };
+  }
+
+  const parts = assetStr.split(":");
+  const code = parts[0];
+  const issuer = parts[1];
+
+  if (code === "USDC") {
+    const usdcIssuer = issuer || "GA5Z3543JZG3A5Y36Y645C227X43D2M3H33N75";
+    return {
+      code: "USDC",
+      issuer: usdcIssuer,
+      domain: "centre.io",
+      name: "USD Coin",
+      description: "Circle USD Stablecoin on Stellar",
+      isStandard: true,
+      stellarExpertUrl: `https://stellar.expert/explorer/public/asset/USDC-${usdcIssuer}`,
+    };
+  }
+
+  if (code === "yUSDC" || assetStr.toLowerCase().includes("yusdc")) {
+    const yIssuer = issuer || "GD5J6ZEFBCW4SPO4XM5JGKT4P4HSE2W5EOADYA6FZWWZ7BSEJJN3SXSZ";
+    return {
+      code: "yUSDC",
+      issuer: yIssuer,
+      domain: "ultracapital.xyz",
+      name: "yUSDC (wrapped USDC)",
+      description: "Yield-bearing wrapped USDC token on Stellar by Ultra Capital",
+      isStandard: false,
+      stellarExpertUrl: `https://stellar.expert/explorer/public/asset/yUSDC-${yIssuer}`,
+    };
+  }
+
+  const url = issuer
+    ? `https://stellar.expert/explorer/public/asset/${code}-${issuer}`
+    : `https://stellar.expert/explorer/public/asset/${code}`;
+
+  return {
+    code: code || assetStr,
+    issuer,
+    name: `${code} Asset`,
+    description: issuer ? `${code} — Custom Stellar Asset` : `${code} asset`,
+    isStandard: !issuer,
+    stellarExpertUrl: url,
+  };
+}
+
+function AssetBadge({ asset }: { asset: string }) {
+  const meta = getAssetMeta(asset);
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  return (
+    <div className="relative inline-flex items-center gap-1">
+      <a
+        href={meta.stellarExpertUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        onFocus={() => setShowTooltip(true)}
+        onBlur={() => setShowTooltip(false)}
+        className="inline-flex items-center gap-1 font-mono text-xs font-semibold hover:underline cursor-pointer group"
+        style={{ color: meta.isStandard ? "var(--foreground-muted)" : "var(--primary)" }}
+        title={`Verify ${meta.code} on stellar.expert`}
+      >
+        <span>{meta.code}</span>
+        {!meta.isStandard && (
+          <span
+            style={{ fontSize: 10, background: "rgba(143, 168, 40, 0.15)", color: "#8FA828" }}
+            className="px-1 py-0.5 rounded font-sans font-medium"
+          >
+            wrapped
+          </span>
+        )}
+        <ExternalLink size={10} className="opacity-60 group-hover:opacity-100 transition-opacity" />
+      </a>
+
+      {showTooltip && (
+        <div
+          className="absolute z-50 bottom-full right-0 mb-2 w-64 p-3 rounded-xl shadow-xl text-left pointer-events-auto"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            color: "var(--foreground)",
+            boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.6)",
+          }}
+        >
+          <div className="flex items-center justify-between gap-1 mb-1 pb-1 border-b border-[var(--border)]">
+            <span className="font-bold text-xs flex items-center gap-1" style={{ color: "var(--primary)" }}>
+              <Info size={12} /> {meta.name || meta.code}
+            </span>
+            {meta.domain && (
+              <span className="text-[10px] text-muted-foreground font-mono bg-[var(--background)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+                {meta.domain}
+              </span>
+            )}
+          </div>
+
+          <p className="text-[11px] mb-2" style={{ color: "var(--foreground-muted)" }}>
+            {meta.description}
+          </p>
+
+          {meta.issuer && (
+            <div className="text-[10px] font-mono break-all mb-2 p-1.5 rounded bg-[var(--background)] border border-[var(--border)]">
+              <span className="text-[9px] font-sans font-bold block" style={{ color: "var(--foreground-muted)" }}>
+                ISSUER ADDRESS:
+              </span>
+              <span>{meta.issuer}</span>
+            </div>
+          )}
+
+          <a
+            href={meta.stellarExpertUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 hover:underline"
+          >
+            Verify on stellar.expert <ExternalLink size={10} />
+          </a>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function TransactionsPage() {
@@ -41,11 +181,30 @@ export default function TransactionsPage() {
   }, [txs, filter]);
 
   const stats = useMemo(() => {
-    const inCount = txs.filter((t) => t.type === "inflow").length;
-    const outCount = txs.filter((t) => t.type === "outflow").length;
-    const swapCount = txs.filter((t) => t.type === "swap").length;
-    return { inCount, outCount, swapCount, total: txs.length };
-  }, [txs]);
+    const inTxs = txs.filter((t) => t.type === "inflow" && t.amount > 0);
+    const outTxs = txs.filter((t) => t.type === "outflow" && t.amount > 0);
+    const swapTxs = txs.filter((t) => t.type === "swap" && (t.amount > 0 || !!t.swapDetails));
+
+    const totalRealTransfers = inTxs.length + outTxs.length + swapTxs.length;
+
+    return {
+      allIn: inTxs.length,
+      allOut: outTxs.length,
+      allSwap: swapTxs.length,
+      allTotal: totalRealTransfers,
+      displayTotal:
+        filter === "all"
+          ? totalRealTransfers
+          : filter === "inflow"
+          ? inTxs.length
+          : filter === "outflow"
+          ? outTxs.length
+          : swapTxs.length,
+      displayIn: filter === "all" || filter === "inflow" ? inTxs.length : 0,
+      displayOut: filter === "all" || filter === "outflow" ? outTxs.length : 0,
+      displaySwap: filter === "all" || filter === "swap" ? swapTxs.length : 0,
+    };
+  }, [txs, filter]);
 
   return (
     <>
@@ -79,23 +238,71 @@ export default function TransactionsPage() {
 
       {analysis && !isAnalyzing && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <StatCard label="Total" value={stats.total} color="var(--foreground)" />
-            <StatCard label="Inflows" value={stats.inCount} color="#22c55e" />
-            <StatCard label="Outflows" value={stats.outCount} color="#ef4444" />
-            <StatCard label="Swaps" value={stats.swapCount} color="#8FA828" />
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <span style={{ color: "var(--foreground-muted)", fontSize: 12, fontWeight: 600 }} className="flex items-center gap-1.5">
+                {filter === "all" ? (
+                  <>
+                    <span>All-time totals</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--card)] border border-[var(--border)] font-normal">
+                      Reflects all real transfer volume
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary uppercase">
+                      Filtered Stats ({filter})
+                    </span>
+                    <span>
+                      Showing {stats.displayTotal} of {stats.allTotal} real transfers
+                    </span>
+                  </>
+                )}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <StatCard
+                label="Total"
+                value={stats.displayTotal}
+                color="var(--foreground)"
+                subtext={filter === "all" ? "All real transfers" : `Filtered: ${filter}`}
+                isActive={true}
+                isFiltered={filter !== "all"}
+              />
+              <StatCard
+                label="Inflows"
+                value={stats.displayIn}
+                color="#22c55e"
+                subtext={filter === "all" ? "Real incoming transfers" : filter === "inflow" ? "Active filter" : "Filtered out"}
+                isActive={filter === "all" || filter === "inflow"}
+                isFiltered={filter !== "all"}
+              />
+              <StatCard
+                label="Outflows"
+                value={stats.displayOut}
+                color="#ef4444"
+                subtext={filter === "all" ? "Real outgoing transfers" : filter === "outflow" ? "Active filter" : "Filtered out"}
+                isActive={filter === "all" || filter === "outflow"}
+                isFiltered={filter !== "all"}
+              />
+              <StatCard
+                label="Swaps"
+                value={stats.displaySwap}
+                color="#8FA828"
+                subtext={filter === "all" ? "Asset conversions" : filter === "swap" ? "Active filter" : "Filtered out"}
+                isActive={filter === "all" || filter === "swap"}
+                isFiltered={filter !== "all"}
+              />
+            </div>
           </div>
 
           <div className="card overflow-hidden">
-            <div
-              className="flex items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b border-border"
-            >
+            <div className="flex items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b border-border">
               <span style={{ color: "var(--foreground-muted)", fontSize: 12 }} className="flex items-center gap-1.5 shrink-0">
                 <Filter size={12} /> {filtered.length}<span className="hidden sm:inline"> transaction{filtered.length === 1 ? "" : "s"}</span>
               </span>
-              <div
-                className="pressed p-0.5 flex items-center gap-0.5"
-              >
+              <div className="pressed p-0.5 flex items-center gap-0.5">
                 {FILTERS.map(({ key, label, Icon }) => (
                   <button
                     key={key}
@@ -163,12 +370,27 @@ export default function TransactionsPage() {
                                 {" → "}
                                 {formatAmount(tx.swapDetails.toAmount)} {tx.swapDetails.toAsset}
                               </>
+                            ) : tx.amount === 0 ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <span style={{ color: "var(--foreground-muted)" }}>0</span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    background: "rgba(245, 158, 11, 0.15)",
+                                    color: "#f59e0b",
+                                    border: "1px solid rgba(245, 158, 11, 0.25)",
+                                  }}
+                                  className="px-1.5 py-0.5 rounded font-sans font-semibold"
+                                >
+                                  Non-transfer
+                                </span>
+                              </span>
                             ) : (
                               <>
                                 {tx.type === "inflow" ? "+" : "−"}
                                 {formatAmount(tx.amount)}{" "}
                                 <span style={{ color: "var(--foreground-muted)", fontWeight: 400 }}>
-                                  {assetLabel(tx.asset)}
+                                  {assetCode(tx.asset)}
                                 </span>
                               </>
                             )}
@@ -227,7 +449,7 @@ export default function TransactionsPage() {
                         <td
                           className="px-5 py-3 text-right font-semibold"
                           style={{
-                            color: tx.type === "inflow" ? "#22c55e" : tx.type === "outflow" ? "#ef4444" : "#8FA828"
+                            color: tx.type === "inflow" ? "#22c55e" : tx.type === "outflow" ? "#ef4444" : "#8FA828",
                           }}
                         >
                           {tx.type === "swap" && tx.swapDetails ? (
@@ -236,6 +458,22 @@ export default function TransactionsPage() {
                               {" → "}
                               {formatAmount(tx.swapDetails.toAmount)} {tx.swapDetails.toAsset}
                             </>
+                          ) : tx.amount === 0 ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span style={{ color: "var(--foreground-muted)" }}>0</span>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  background: "rgba(245, 158, 11, 0.15)",
+                                  color: "#f59e0b",
+                                  border: "1px solid rgba(245, 158, 11, 0.25)",
+                                }}
+                                className="px-1.5 py-0.5 rounded font-sans font-semibold"
+                                title="Protocol operation with zero monetary transfer volume (e.g. trustline / claimable balance setup)"
+                              >
+                                Non-transfer
+                              </span>
+                            </div>
                           ) : (
                             <>
                               {tx.type === "inflow" ? "+" : "−"}
@@ -244,9 +482,15 @@ export default function TransactionsPage() {
                           )}
                         </td>
                         <td className="px-5 py-3 text-right" style={{ color: "var(--foreground-muted)", fontSize: 12 }}>
-                          {tx.type === "swap" && tx.swapDetails
-                            ? `${tx.swapDetails.fromAsset} → ${tx.swapDetails.toAsset}`
-                            : assetLabel(tx.asset)}
+                          {tx.type === "swap" && tx.swapDetails ? (
+                            <div className="inline-flex items-center gap-1 justify-end">
+                              <AssetBadge asset={tx.swapDetails.fromAsset} />
+                              <span>→</span>
+                              <AssetBadge asset={tx.swapDetails.toAsset} />
+                            </div>
+                          ) : (
+                            <AssetBadge asset={tx.asset} />
+                          )}
                         </td>
                       </motion.tr>
                     ))}
@@ -261,16 +505,47 @@ export default function TransactionsPage() {
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+function StatCard({
+  label,
+  value,
+  color,
+  subtext,
+  isActive = true,
+  isFiltered = false,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  subtext?: string;
+  isActive?: boolean;
+  isFiltered?: boolean;
+}) {
   return (
     <div
-      style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-      className="rounded-xl p-4"
+      style={{
+        background: "var(--card)",
+        border: isActive ? `1px solid ${color}` : "1px solid var(--border)",
+        boxShadow: isActive && isFiltered ? `0 0 12px ${color}20` : "none",
+        opacity: isActive ? 1 : 0.45,
+      }}
+      className="rounded-xl p-4 transition-all"
     >
-      <p style={{ color: "var(--foreground-muted)", fontSize: 11, fontWeight: 600 }} className="uppercase mb-1">
-        {label}
-      </p>
+      <div className="flex items-center justify-between gap-1 mb-1">
+        <p style={{ color: "var(--foreground-muted)", fontSize: 11, fontWeight: 600 }} className="uppercase">
+          {label}
+        </p>
+        {isFiltered && isActive && (
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase">
+            Active
+          </span>
+        )}
+      </div>
       <p style={{ color, fontSize: 24, fontWeight: 900 }}>{value}</p>
+      {subtext && (
+        <p style={{ color: "var(--foreground-muted)", fontSize: 10 }} className="mt-1">
+          {subtext}
+        </p>
+      )}
     </div>
   );
 }

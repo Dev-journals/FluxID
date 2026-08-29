@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateLiquidityScore, type LiquidityMetrics } from "./scoring";
+import { calculateLiquidityScore, calculateLiquidityMetrics, type LiquidityMetrics } from "./scoring";
 
 function metrics(partial: Partial<LiquidityMetrics>): LiquidityMetrics {
   return {
@@ -47,5 +47,46 @@ describe("calculateLiquidityScore", () => {
     );
     expect(result.score).toBeGreaterThanOrEqual(70);
     expect(result.riskLevel).toBe("Low");
+  });
+});
+
+describe("calculateLiquidityMetrics", () => {
+  it("filters zero-value operations from inflating inflow/outflow transaction counts", () => {
+    const payments = [
+      {
+        id: "1",
+        from: "GOTHER",
+        to: "GWALLET",
+        amount: "100",
+        asset_type: "native",
+        created_at: "2026-08-20T00:00:00Z",
+        transaction_successful: true,
+      },
+      {
+        id: "2",
+        from: "GOTHER",
+        to: "GWALLET",
+        amount: "0",
+        asset_type: "native",
+        created_at: "2026-08-20T00:00:00Z",
+        transaction_successful: true,
+      },
+      {
+        id: "3",
+        from: "GWALLET",
+        to: "GOTHER",
+        amount: "50",
+        asset_type: "native",
+        created_at: "2026-08-20T00:00:00Z",
+        transaction_successful: true,
+      },
+    ];
+
+    const result = calculateLiquidityMetrics(payments, "GWALLET");
+    expect(result.inflowCount).toBe(1);
+    expect(result.outflowCount).toBe(1);
+    expect(result.transactionCount).toBe(2);
+    expect(result.totalInflow).toBe(100);
+    expect(result.totalOutflow).toBe(50);
   });
 });
