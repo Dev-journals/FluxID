@@ -1,11 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { AssetsBreakdown, FlowSummary as FlowSummaryType, UsdValuation } from "../../lib/scoring";
 import { ArrowDownLeft, ArrowUpRight, Activity, Coins, ArrowLeftRight } from "lucide-react";
-
-const COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd";
+import { useXlmPrice } from "../../lib/useXlmPrice";
 
 interface FlowSummaryProps {
   data: FlowSummaryType | null;
@@ -23,18 +21,6 @@ function formatUsd(n: number): string {
   return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 }
 
-// Fetch XLM price from CoinGecko (frontend fallback)
-async function fetchXlmPrice(): Promise<number | null> {
-  try {
-    const res = await fetch(COINGECKO_URL, { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { stellar?: { usd?: number } };
-    return data?.stellar?.usd ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function directionCaption(dir: { XLM: number; USDC: number; other: unknown[] }): string {
   const parts: string[] = [];
   if (dir.XLM > 0) parts.push(`${formatAmount(dir.XLM)} XLM`);
@@ -50,17 +36,9 @@ function directionCaption(dir: { XLM: number; USDC: number; other: unknown[] }):
 }
 
 export default function FlowSummary({ data, assets, usd, isLoading, className = "" }: FlowSummaryProps) {
-  const [frontendPrice, setFrontendPrice] = useState<number | null>(null);
+  const xlmPrice = useXlmPrice(usd);
 
-  // Fetch XLM price from frontend if backend didn't provide it
-  useEffect(() => {
-    if (!usd?.xlmPriceUsd && assets) {
-      fetchXlmPrice().then(setFrontendPrice);
-    }
-  }, [usd?.xlmPriceUsd, assets]);
-
-  if (isLoading) {
-    return (
+  if (isLoading) {    return (
       <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 ${className}`}>
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="animate-pulse h-28 bg-var(--surface) rounded-xl" />
@@ -71,8 +49,6 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
 
   if (!data) return null;
 
-  // Use backend price, or fallback to frontend-fetched price
-  const xlmPrice = usd?.xlmPriceUsd ?? frontendPrice;
   const hasPrice = xlmPrice !== null;
 
   // Calculate USD totals using the price
@@ -134,12 +110,10 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
     },
     {
       label: "Assets",
-      primary: assets ? assetCountLabel(assets) : ",",
+      primary: assets ? assetCountLabel(assets) : "—",
       caption: xlmPrice
         ? `XLM = ${formatUsd(xlmPrice)}`
-        : frontendPrice
-          ? `XLM = ${formatUsd(frontendPrice)}`
-          : "XLM price unavailable",
+        : "XLM price unavailable",
       icon: Coins,
       color: "var(--foreground)",
       isPrimaryUsd: false,
@@ -209,7 +183,7 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
             : ""}
         </p>
       )}
-      {!usd?.note && (usd?.xlmPriceUsd || frontendPrice) && (
+      {!usd?.note && xlmPrice && (
         <p style={{ color: "var(--foreground-dim)", fontSize: 11 }} className="italic">
           XLM price fetched via CoinGecko
         </p>
