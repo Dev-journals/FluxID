@@ -169,6 +169,49 @@ function AssetBadge({ asset }: { asset: string }) {
   );
 }
 
+function StatHint({ text }: { text: string }) {
+  const [pinned, setPinned] = useState(false);
+
+  return (
+    <span className="relative inline-flex group/hint">
+      <button
+        onClick={() => setPinned((p) => !p)}
+        aria-label="More info"
+        className="p-0.5 rounded transition-colors hover:bg-[var(--surface)]"
+        style={{ color: "var(--foreground-dim)" }}
+      >
+        <ChevronDown size={12} />
+      </button>
+      {pinned && (
+        <span
+          className="absolute top-full left-0 mt-1 z-50 w-56 p-2.5 rounded-lg text-left shadow-lg"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            color: "var(--foreground-muted)",
+            fontSize: 11,
+            lineHeight: 1.5,
+          }}
+        >
+          {text}
+        </span>
+      )}
+      <span
+        className="absolute top-full left-0 mt-1 z-50 w-56 p-2.5 rounded-lg text-left shadow-lg pointer-events-none opacity-0 group-hover/hint:opacity-100 transition-opacity"
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          color: "var(--foreground-muted)",
+          fontSize: 11,
+          lineHeight: 1.5,
+        }}
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
 export default function TransactionsPage() {
   const { analysis, analyzedAddress, isAnalyzing } = useAnalysis();
   const [filter, setFilter] = useState<DirectionFilter>("all");

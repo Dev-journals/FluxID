@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { AssetsBreakdown, FlowSummary as FlowSummaryType, UsdValuation, WalletHolding, formatTransactionCount, assetKindsLabel } from "../../lib/scoring";
-import { ArrowDownLeft, ArrowUpRight, Activity, Coins, ArrowLeftRight } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Activity, Coins, ArrowLeftRight, ChevronDown } from "lucide-react";
 import { useXlmPrice } from "../../lib/useXlmPrice";
 
 interface FlowSummaryProps {
@@ -34,6 +35,52 @@ function directionCaption(dir: { XLM: number; USDC: number; other: unknown[] }):
     parts.push(`+${totalCount} other`);
   }
   return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
+function StatHint({ text }: { text: string }) {
+  const [pinned, setPinned] = useState(false);
+
+  return (
+    <span
+      className="relative inline-flex group/hint"
+      onMouseEnter={() => {}}
+    >
+      <button
+        onClick={() => setPinned((p) => !p)}
+        aria-label="More info"
+        className="p-0.5 rounded transition-colors hover:bg-[var(--surface)]"
+        style={{ color: "var(--foreground-dim)" }}
+      >
+        <ChevronDown size={12} />
+      </button>
+      {(pinned) && (
+        <span
+          className="absolute top-full left-0 mt-1 z-50 w-56 p-2.5 rounded-lg text-left shadow-lg"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            color: "var(--foreground-muted)",
+            fontSize: 11,
+            lineHeight: 1.5,
+          }}
+        >
+          {text}
+        </span>
+      )}
+      <span
+        className="absolute top-full left-0 mt-1 z-50 w-56 p-2.5 rounded-lg text-left shadow-lg pointer-events-none opacity-0 group-hover/hint:opacity-100 transition-opacity"
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          color: "var(--foreground-muted)",
+          fontSize: 11,
+          lineHeight: 1.5,
+        }}
+      >
+        {text}
+      </span>
+    </span>
+  );
 }
 
 export default function FlowSummary({ data, assets, usd, holdings, isLoading, className = "" }: FlowSummaryProps) {
@@ -73,6 +120,8 @@ export default function FlowSummary({ data, assets, usd, holdings, isLoading, cl
   const inflowColor = hasUsd && inflowUsd !== null ? "#22c55e" : "var(--foreground)";
   const outflowColor = hasUsd && outflowUsd !== null ? "#ef4444" : "var(--foreground)";
 
+  const showOutflowHint = hasUsd && outflowUsd !== null && inflowUsd !== null && outflowUsd > inflowUsd * 2;
+
   // Format swaps for display. When there are multiple distinct pairs, include
   // per-pair counts so "USDC → XLM (2) · XLM → USDC (1)" is readable at a glance.
   const showSwapCounts = (data.swaps?.length ?? 0) > 1;
@@ -85,7 +134,15 @@ export default function FlowSummary({ data, assets, usd, holdings, isLoading, cl
         .join(" · ")
     : null;
   
-  const stats = [
+  const stats: {
+    label: string;
+    primary: string;
+    caption: string | null;
+    icon: typeof ArrowDownLeft;
+    color: string;
+    isPrimaryUsd: boolean | undefined;
+    hint?: string;
+  }[] = [
     {
       label: "Total Inflow",
       primary: inflowPrimary,
@@ -101,6 +158,9 @@ export default function FlowSummary({ data, assets, usd, holdings, isLoading, cl
       icon: ArrowUpRight,
       color: outflowColor,
       isPrimaryUsd: hasUsd && outflowUsd !== null,
+      hint: showOutflowHint
+        ? "Inflow and outflow are independent totals — they don't need to balance. A higher outflow means the wallet spent more than it received during this period."
+        : undefined,
     },
     {
       label: "Transactions",
@@ -109,6 +169,7 @@ export default function FlowSummary({ data, assets, usd, holdings, isLoading, cl
       icon: Activity,
       color: "var(--primary)",
       isPrimaryUsd: false,
+      hint: "Transaction count includes all on-chain operations (payments, account setup, etc.). The Transactions page shows only payment transfers — the counts may differ.",
     },
     {
       label: "Assets",
@@ -154,6 +215,7 @@ export default function FlowSummary({ data, assets, usd, holdings, isLoading, cl
               >
                 {stat.label}
               </span>
+              {stat.hint && <StatHint text={stat.hint} />}
             </div>
             <p 
               style={{ 
