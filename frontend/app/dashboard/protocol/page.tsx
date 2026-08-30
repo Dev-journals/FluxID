@@ -88,10 +88,11 @@ export default function ProtocolDashboard() {
   const cohortMax = cohorts && cohorts.length > 0
     ? Math.max(1, ...cohorts.map((c) => c.count))
     : 1;
-  const noWalletsInCohorts =
-    !cohortsLoading &&
-    !cohortsError &&
-    ((cohorts?.length ?? 0) === 0 || (cohorts?.every((c) => c.count === 0) ?? true));
+  // Cohort buckets (High Trust / Low risk / At Risk / Dormant) can all be 0 even
+  // when Medium wallets are scored. Use totalScored so we don't mislabel a
+  // successful pipeline as "nothing scored yet".
+  const noWalletsScored =
+    !cohortsLoading && !cohortsError && totalScored === 0;
 
   const runSegmentQuery = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -542,7 +543,7 @@ export default function ProtocolDashboard() {
                     {segmentEmptyMessage("pipeline-error")}
                   </p>
                 )}
-                {noWalletsInCohorts && (
+                {noWalletsScored && (
                   <p
                     style={{ color: "var(--foreground-dim)", fontSize: 12 }}
                     className="py-2"
@@ -550,7 +551,7 @@ export default function ProtocolDashboard() {
                     {segmentEmptyMessage("none-scored")}
                   </p>
                 )}
-                {!cohortsLoading && !cohortsError && !noWalletsInCohorts && cohorts && cohorts.map((s) => (
+                {!cohortsLoading && !cohortsError && !noWalletsScored && cohorts && cohorts.map((s) => (
                   <button
                     key={s.id}
                     title={s.description}
