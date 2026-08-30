@@ -30,6 +30,15 @@ export function resolveAnalyzeAddress(
   return null;
 }
 
+export const ACCOUNT_NOT_FOUND_GUIDANCE = [
+  "This wallet may be on a different network. Try switching between Mainnet/Testnet.",
+  "Make sure the account is activated (has at least 1 XLM).",
+  "Check the address for typos.",
+] as const;
+
+export const ACCOUNT_ACTIVATION_GUIDE_URL =
+  "https://developers.stellar.org/docs/learn/fundamentals/lumens#minimum-balance";
+
 export function isHorizonNotFound(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const e = error as {
@@ -41,9 +50,13 @@ export function isHorizonNotFound(error: unknown): boolean {
   return e.name === "NotFoundError" || status === 404;
 }
 
+export function isAccountNotFoundMessage(message: string): boolean {
+  return /account not found/i.test(message);
+}
+
 export function horizonAnalyzeError(error: unknown, network: StellarNetwork): string {
   if (isHorizonNotFound(error)) {
-    return `Account not found on ${network}. Check the address or switch network.`;
+    return `Account not found on ${network}. ${ACCOUNT_NOT_FOUND_GUIDANCE.join(" ")}`;
   }
   const detail =
     error instanceof Error && error.message ? error.message : "Please try again.";

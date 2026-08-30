@@ -3,7 +3,7 @@ import type { NetworkType } from '../config/stellar.config.js';
 import { appConfig } from '../config/app.config.js';
 import { logger } from '../utils/logger.js';
 
-interface CacheEntry {
+export interface CacheEntry {
   data: ScoreResult;
   timestamp: number;
 }
@@ -20,7 +20,7 @@ class CacheService {
     return `score:${network}:${accountId}`;
   }
 
-  get(accountId: string, network: NetworkType): ScoreResult | null {
+  getEntry(accountId: string, network: NetworkType): CacheEntry | null {
     const key = this.getKey(accountId, network);
     const entry = this.cache.get(key);
 
@@ -36,7 +36,11 @@ class CacheService {
     }
 
     logger.debug({ key }, 'Cache hit');
-    return entry.data;
+    return entry;
+  }
+
+  get(accountId: string, network: NetworkType): ScoreResult | null {
+    return this.getEntry(accountId, network)?.data ?? null;
   }
 
   set(accountId: string, network: NetworkType, data: ScoreResult): void {

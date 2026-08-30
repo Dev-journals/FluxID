@@ -131,7 +131,7 @@ export async function registerProtocolRoutes(fastify: FastifyInstance) {
     }
   );
 
-  fastify.post<{ Body: { wallets?: string[]; network?: string } }>(
+  fastify.post<{ Body: { wallets?: string[]; network?: string; refresh?: boolean } }>(
     '/protocol/wallets',
     async (request, reply) => {
       try {
@@ -142,7 +142,8 @@ export async function registerProtocolRoutes(fastify: FastifyInstance) {
             .send({ success: false, error: 'Body must include a `wallets` string array.' });
         }
         const network = validateNetwork(body.network ?? DEFAULT_NETWORK);
-        const data = await addWalletsToProtocol(body.wallets, network);
+        const refresh = body.refresh !== false;
+        const data = await addWalletsToProtocol(body.wallets, network, { refresh });
         return reply.send({ success: true, data });
       } catch (error) {
         const err = error as Error;

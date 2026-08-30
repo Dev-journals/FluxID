@@ -78,6 +78,13 @@ export async function startServer() {
 
   try {
     await fastify.listen({ port: appConfig.port, host: '0.0.0.0' });
+    // Render (and most reverse proxies) idle-timeout around 60s. Node's default
+    // keepAliveTimeout is 5s, so the proxy reuses a socket Node already closed
+    // and the client sees ERR_CONNECTION_CLOSED — especially on the first
+    // request after a free-tier wake. Keep the HTTP server above the proxy.
+    const httpServer = fastify.server;
+    httpServer.keepAliveTimeout = 65_000;
+    httpServer.headersTimeout = 66_000;
     logger.info(`FluxID Backend running on http://0.0.0.0:${appConfig.port}`);
     logger.info(`Network: ${appConfig.stellarNetwork}`);
   } catch (err) {

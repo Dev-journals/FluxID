@@ -1,0 +1,25 @@
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> fluxid-backend@1.0.0 test
+> vitest --run src/services/history.service.test.ts src/services/protocol.service.test.ts
+
+
+ RUN  v1.6.1 /Users/joaquinpappa/programming/grantfox/FluxID/backend
+
+{"level":40,"time":1788109838568,"pid":46288,"hostname":"MacBook-Pro-de-Joaquin.local","error":"EROFS: read-only file system","wallet":"GAVA7FY3KBXJVZDBX254LPM53YXRUEVLM5BXMXZOC7ZIW3HXFP6LT4SR","file":"/var/folders/b0/rmcp92zj1pxdnj5l_v03z31c0000gn/T/fluxid-history-test-vgidQB/protocol_history.jsonl","msg":"Failed to append history entry"}
+ ✓ src/services/history.service.test.ts  (4 tests) 37ms
+{"level":30,"time":1788109838684,"pid":46288,"hostname":"MacBook-Pro-de-Joaquin.local","accountId":"GAVA7FY3KBXJVZDBX254LPM53YXRUEVLM5BXMXZOC7ZIW3HXFP6LT4SR","network":"mainnet","msg":"Calculating wallet score"}
+{"level":30,"time":1788109838684,"pid":46288,"hostname":"MacBook-Pro-de-Joaquin.local","accountId":"GBACI4PCHZQXZFAADCMG4TICARUDZAGF5CI3A4RPTD7SOSW2VPKLGDCX","network":"mainnet","msg":"Calculating wallet score"}
+{"level":30,"time":1788109838685,"pid":46288,"hostname":"MacBook-Pro-de-Joaquin.local","accountId":"GAVA7FY3KBXJVZDBX254LPM53YXRUEVLM5BXMXZOC7ZIW3HXFP6LT4SR","score":43,"risk":"Medium","xlmPriceUsedForScoring":0.12,"msg":"Score calculated (USD-normalized)"}
+{"level":30,"time":1788109838685,"pid":46288,"hostname":"MacBook-Pro-de-Joaquin.local","accountId":"GBACI4PCHZQXZFAADCMG4TICARUDZAGF5CI3A4RPTD7SOSW2VPKLGDCX","score":43,"risk":"Medium","xlmPriceUsedForScoring":0.12,"msg":"Score calculated (USD-normalized)"}
+{"level":30,"time":1788109838690,"pid":46288,"hostname":"MacBook-Pro-de-Joaquin.local","accountId":"GAVA7FY3KBXJVZDBX254LPM53YXRUEVLM5BXMXZOC7ZIW3HXFP6LT4SR","network":"mainnet","msg":"Calculating wallet score"}
+{"level":30,"time":1788109838690,"pid":46288,"hostname":"MacBook-Pro-de-Joaquin.local","accountId":"GAVA7FY3KBXJVZDBX254LPM53YXRUEVLM5BXMXZOC7ZIW3HXFP6LT4SR","score":43,"risk":"Medium","xlmPriceUsedForScoring":0.12,"msg":"Score calculated (USD-normalized)"}
+{"level":30,"time":1788109838691,"pid":46288,"hostname":"MacBook-Pro-de-Joaquin.local","accountId":"GAVA7FY3KBXJVZDBX254LPM53YXRUEVLM5BXMXZOC7ZIW3HXFP6LT4SR","network":"mainnet","msg":"Calculating wallet score"}
+{"level":30,"time":1788109838691,"pid":46288,"hostname":"MacBook-Pro-de-Joaquin.local","accountId":"GAVA7FY3KBXJVZDBX254LPM53YXRUEVLM5BXMXZOC7ZIW3HXFP6LT4SR","score":43,"risk":"Medium","xlmPriceUsedForScoring":0.12,"msg":"Score calculated (USD-normalized)"}
+ ✓ src/services/protocol.service.test.ts  (2 tests) 147ms
+
+ Test Files  2 passed (2)
+      Tests  6 passed (6)
+   Start at  11:10:38
+   Duration  310ms (transform 63ms, setup 0ms, collect 38ms, tests 184ms, environment 0ms, prepare 77ms)
+
