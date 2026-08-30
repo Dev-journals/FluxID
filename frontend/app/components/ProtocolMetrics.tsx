@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Users, TrendingUp, AlertTriangle, Activity } from "lucide-react";
-import { fetchProtocolHealth, type ProtocolHealth } from "../../lib/protocolApi";
+import { fetchProtocolHealth, type ProtocolHealth, type ProtocolNetwork } from "../../lib/protocolApi";
 
 interface Metric {
   label: string;
@@ -31,20 +31,21 @@ function deltaParts(
 
 interface ProtocolMetricsProps {
   refreshKey?: number;
+  network?: ProtocolNetwork;
 }
 
-export default function ProtocolMetrics({ refreshKey = 0 }: ProtocolMetricsProps) {
+export default function ProtocolMetrics({ refreshKey = 0, network }: ProtocolMetricsProps) {
   const [health, setHealth] = useState<ProtocolHealth | null>(null);
 
   useEffect(() => {
     let active = true;
-    fetchProtocolHealth().then((h) => {
+    fetchProtocolHealth(network).then((h) => {
       if (active) setHealth(h);
     });
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, network]);
 
   const avgScoreDelta = deltaParts(health?.delta.avgScore ?? null, "", true);
   const totalWalletsDelta = deltaParts(health?.delta.totalWallets ?? null, "", true);

@@ -21,6 +21,7 @@ import {
 } from "../../../lib/protocolApi";
 import { isAccountNotFoundMessage } from "../../../lib/scoring";
 import AccountNotFoundHelp from "../../components/AccountNotFoundHelp";
+import { useStoredNetwork } from "../../../lib/dashboardStorage";
 
 type RiskFilter = "" | "Low" | "Medium" | "High";
 type ActivityFilter = "" | SegmentActivity;
@@ -44,7 +45,7 @@ export default function ProtocolDashboard() {
   const [segmentLoading, setSegmentLoading] = useState(false);
 
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadNetwork, setUploadNetwork] = useState<ProtocolNetwork>("mainnet");
+  const [protocolNetwork, setProtocolNetwork] = useStoredNetwork();
   const [walletInput, setWalletInput] = useState("");
   const [uploadResult, setUploadResult] = useState<AddWalletsResult | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -61,7 +62,7 @@ export default function ProtocolDashboard() {
     (async () => {
       await pingBackendHealth(requestOptions);
       if (!active) return;
-      const res = await fetchProtocolCohorts(undefined, requestOptions);
+      const res = await fetchProtocolCohorts(protocolNetwork, requestOptions);
       if (!active) return;
       setCohorts(res?.cohorts ?? []);
       setWakingServer(false);
@@ -70,7 +71,7 @@ export default function ProtocolDashboard() {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey, onRetry]);
+  }, [refreshKey, onRetry, protocolNetwork]);
 
   const cohortsLoading = cohorts === null;
   const cohortMax = cohorts && cohorts.length > 0
@@ -89,7 +90,7 @@ export default function ProtocolDashboard() {
         consistent: consistent ? true : undefined,
         limit: 50,
       },
-      undefined,
+      protocolNetwork,
       requestOptions
     );
     setSegmentResult(result);
@@ -106,7 +107,7 @@ export default function ProtocolDashboard() {
     if (wallets.length === 0) return;
     setUploadLoading(true);
     setUploadResult(null);
-    const result = await addProtocolWallets(wallets, uploadNetwork, requestOptions);
+    const result = await addProtocolWallets(wallets, protocolNetwork, requestOptions);
     setUploadResult(result);
     setUploadLoading(false);
     setWakingServer(false);
@@ -118,7 +119,7 @@ export default function ProtocolDashboard() {
   const runReset = async () => {
     if (!confirm("Reset protocol intelligence data? This clears all uploaded wallets.")) return;
     setResetting(true);
-    await resetProtocolHistory(undefined, requestOptions);
+    await resetProtocolHistory(protocolNetwork, requestOptions);
     setWakingServer(false);
     setUploadResult(null);
     setRefreshKey((k) => k + 1);
@@ -129,8 +130,8 @@ export default function ProtocolDashboard() {
     setExporting(true);
     try {
       const [health, segments] = await Promise.all([
-        fetchProtocolHealth(undefined, requestOptions),
-        fetchProtocolSegments({ limit: 500 }, undefined, requestOptions),
+        fetchProtocolHealth(protocolNetwork, requestOptions),
+        fetchProtocolSegments({ limit: 500 }, protocolNetwork, requestOptions),
       ]);
       setWakingServer(false);
       if (!health || !segments) {
@@ -212,6 +213,31 @@ export default function ProtocolDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <div
+            id="protocol-network-switcher"
+            className="flex items-center p-0.5 rounded-lg card overflow-hidden"
+            role="radiogroup"
+            aria-label="Protocol network"
+          >
+            {(["mainnet", "testnet"] as ProtocolNetwork[]).map((n) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={protocolNetwork === n}
+                onClick={() => setProtocolNetwork(n)}
+                style={{
+                  background: protocolNetwork === n ? "var(--primary)" : "transparent",
+                  color: protocolNetwork === n ? "var(--background)" : "var(--foreground-muted)",
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}
+                className="px-3 py-1.5 rounded-md uppercase"
+              >
+                {n}
+              </button>
+            ))}
+          </div>
           <button
             onClick={runExportReport}
             disabled={exporting}
@@ -266,17 +292,16 @@ export default function ProtocolDashboard() {
               Add Wallets to Protocol Intelligence
             </h3>
             <div
-              id="protocol-network-switcher"
               className="flex items-center p-0.5 rounded-lg card overflow-hidden"
             >
               {(["mainnet", "testnet"] as ProtocolNetwork[]).map((n) => (
                 <button
                   key={n}
                   type="button"
-                  onClick={() => setUploadNetwork(n)}
+                  onClick={() => setProtocolNetwork(n)}
                   style={{
-                    background: uploadNetwork === n ? "var(--primary)" : "transparent",
-                    color: uploadNetwork === n ? "var(--background)" : "var(--foreground-muted)",
+                    background: protocolNetwork === n ? "var(--primary)" : "transparent",
+                    color: protocolNetwork === n ? "var(--background)" : "var(--foreground-muted)",
                     fontSize: 11,
                     fontWeight: 700,
                   }}
@@ -374,10 +399,10 @@ export default function ProtocolDashboard() {
               </div>
               {uploadResult.failed.some((f) => isAccountNotFoundMessage(f.reason)) && (
                 <AccountNotFoundHelp
-                  network={uploadNetwork}
+                  network={protocolNetwork}
                   switcherHref="#protocol-network-switcher"
                   onSwitchNetwork={() =>
-                    setUploadNetwork(uploadNetwork === "mainnet" ? "testnet" : "mainnet")
+                    setProtocolNetwork(protocolNetwork === "mainnet" ? "testnet" : "mainnet")
                   }
                 />
               )}
@@ -387,15 +412,15 @@ export default function ProtocolDashboard() {
       )}
 
       {/* Early Warning System */}
-      <EarlyWarningBanner refreshKey={refreshKey} />
+      <EarlyWarningBanner refreshKey={refreshKey} network={protocolNetwork} />
 
       {/* High-Level Metrics */}
-      <ProtocolMetrics refreshKey={refreshKey} />
+      <ProtocolMetrics refreshKey={refreshKey} network={protocolNetwork} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Risk Heatmap - 2/3 width */}
         <div className="lg:col-span-2">
-          <RiskHeatmap refreshKey={refreshKey} />
+          <RiskHeatmap refreshKey={refreshKey} network={protocolNetwork} />
         </div>
 
         {/* Cohort & Segmentation Engine - 1/3 width */}

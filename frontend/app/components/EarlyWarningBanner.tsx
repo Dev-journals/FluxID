@@ -3,24 +3,25 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, X, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
-import { fetchProtocolAlerts, type ProtocolAlert } from "../../lib/protocolApi";
+import { fetchProtocolAlerts, type ProtocolAlert, type ProtocolNetwork } from "../../lib/protocolApi";
 
 interface EarlyWarningBannerProps {
   refreshKey?: number;
+  network?: ProtocolNetwork;
 }
 
-export default function EarlyWarningBanner({ refreshKey = 0 }: EarlyWarningBannerProps) {
+export default function EarlyWarningBanner({ refreshKey = 0, network }: EarlyWarningBannerProps) {
   const [alerts, setAlerts] = useState<ProtocolAlert[]>([]);
 
   useEffect(() => {
     let active = true;
-    fetchProtocolAlerts().then((res) => {
+    fetchProtocolAlerts(network).then((res) => {
       if (active) setAlerts(res?.alerts ?? []);
     });
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, network]);
 
   const removeAlert = (id: string) => {
     setAlerts((prev) => prev.filter((a) => a.id !== id));

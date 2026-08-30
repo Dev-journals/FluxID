@@ -16,6 +16,11 @@ const WALLET_HISTORY_FILE = path.join(DATA_DIR, 'wallet_history.jsonl');
 const PROTOCOL_HISTORY_FILE = path.join(DATA_DIR, 'protocol_history.jsonl');
 const LEGACY_HISTORY_FILE = path.join(DATA_DIR, 'score_history.jsonl');
 
+// Protocol history is the Cohort Engine's source of truth. Keep an in-process
+// copy so a failed/ephemeral disk write (Render free tier) cannot report
+// "scored 3/3" and then serve empty aggregations from the same instance.
+let protocolMemory: ScoreHistoryEntry[] | null = null;
+
 let dirEnsured = false;
 async function ensureDataDir(): Promise<void> {
   if (dirEnsured) return;
@@ -105,7 +110,15 @@ export interface AllHistoryQueryOptions {
   since?: number;
 }
 
+async function loadProtocolMemory(): Promise<ScoreHistoryEntry[]> {
+  if (protocolMemory) return protocolMemory;
+  protocolMemory = await readEntries(PROTOCOL_HISTORY_FILE);
+  return protocolMemory;
+}
+
 export async function appendProtocolHistory(entry: ScoreHistoryEntry): Promise<void> {
+  const mem = await loadProtocolMemory();
+  mem.push(entry);
   await appendEntry(PROTOCOL_HISTORY_FILE, entry);
 }
 
@@ -113,7 +126,7 @@ export async function getAllProtocolHistory(
   options: AllHistoryQueryOptions = {}
 ): Promise<ScoreHistoryEntry[]> {
   const { network, since } = options;
-  const all = await readEntries(PROTOCOL_HISTORY_FILE);
+  const all = await loadProtocolMemory();
   return all.filter((entry) => {
     if (network && entry.network !== network) return false;
     if (since && entry.timestamp < since) return false;
@@ -122,18 +135,29 @@ export async function getAllProtocolHistory(
 }
 
 export async function clearProtocolHistory(network?: NetworkType): Promise<number> {
-  await ensureDataDir();
-  const all = await readEntries(PROTOCOL_HISTORY_FILE);
+  const all = await loadProtocolMemory();
   if (all.length === 0) return 0;
 
   if (!network) {
-    await fs.writeFile(PROTOCOL_HISTORY_FILE, '', 'utf8');
+    protocolMemory = [];
+    try {
+      await ensureDataDir();
+      await fs.writeFile(PROTOCOL_HISTORY_FILE, '', 'utf8');
+    } catch (err) {
+      logger.warn({ error: (err as Error).message }, 'Failed to clear protocol history file');
+    }
     return all.length;
   }
 
   const kept = all.filter((entry) => entry.network !== network);
   const removed = all.length - kept.length;
-  const content = kept.map((entry) => JSON.stringify(entry)).join('\n');
-  await fs.writeFile(PROTOCOL_HISTORY_FILE, kept.length === 0 ? '' : content + '\n', 'utf8');
+  protocolMemory = kept;
+  try {
+    await ensureDataDir();
+    const content = kept.map((entry) => JSON.stringify(entry)).join('\n');
+    await fs.writeFile(PROTOCOL_HISTORY_FILE, kept.length === 0 ? '' : content + '\n', 'utf8');
+  } catch (err) {
+    logger.warn({ error: (err as Error).message }, 'Failed to rewrite protocol history file');
+  }
   return removed;
 }
