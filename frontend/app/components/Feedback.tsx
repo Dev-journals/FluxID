@@ -57,7 +57,7 @@ export default function Feedback() {
       reset();
       setOpen(false);
     } else {
-      showToast("Could not send feedback. Please try again.", "error");
+      showToast("Failed to send — try again", "error");
     }
   };
 

@@ -12,13 +12,13 @@ export interface StellarConfig {
 export const STELLAR_CONFIGS: Record<NetworkType, StellarConfig> = {
   mainnet: {
     horizonUrl: 'https://horizon.stellar.org',
-    rpcUrl: 'https://rpc.mainnet.stellar.org',
+    rpcUrl: 'https://soroban-mainnet.stellar.org',
     networkPassphrase: Networks.PUBLIC,
     contractId: process.env.MAINNET_CONTRACT_ID,
   },
   testnet: {
     horizonUrl: 'https://horizon-testnet.stellar.org',
-    rpcUrl: 'https://rpc.testnet.stellar.org',
+    rpcUrl: 'https://soroban-testnet.stellar.org',
     networkPassphrase: Networks.TESTNET,
     contractId: process.env.TESTNET_CONTRACT_ID,
   },

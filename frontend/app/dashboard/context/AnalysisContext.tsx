@@ -20,11 +20,19 @@ import {
 interface AnalysisState {
   analyzedAddress: string | null;
   analysis: WalletAnalysis | null;
+  // Network this analysis (or in-flight request) belongs to. Compared against the
+  // currently selected network so a result never survives a network switch, no matter
+  // which UI control (e.g. the Header's own network toggle) triggered that switch.
+  resultNetwork: StellarNetwork | null;
   isAnalyzing: boolean;
   error: string | null;
 }
 
-interface AnalysisContextValue extends AnalysisState {
+interface AnalysisContextValue {
+  analyzedAddress: string | null;
+  analysis: WalletAnalysis | null;
+  isAnalyzing: boolean;
+  error: string | null;
   network: StellarNetwork;
   analyze: (address: string, network?: StellarNetwork) => Promise<boolean>;
   setNetwork: (network: StellarNetwork) => void;
@@ -39,22 +47,42 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AnalysisState>({
     analyzedAddress: null,
     analysis: null,
+    resultNetwork: null,
     isAnalyzing: false,
     error: null,
   });
 
-  const analysis = state.isAnalyzing ? null : (state.analysis ?? stored?.analysis ?? null);
-  const analyzedAddress = state.analyzedAddress ?? stored?.address ?? null;
+  // In-memory and persisted results are only valid for the network they were computed
+  // on — otherwise they're a leftover from before the last network switch and must not
+  // be shown as if they were fresh, regardless of which control changed the network
+  // (the Header's own toggle writes straight to storage, bypassing this provider).
+  const sessionIsFresh = state.resultNetwork === network;
+  const storedForNetwork = stored?.network === network ? stored : null;
+
+  const analysis = state.isAnalyzing
+    ? null
+    : (sessionIsFresh ? state.analysis : null) ?? storedForNetwork?.analysis ?? null;
+  const analyzedAddress =
+    (sessionIsFresh || state.isAnalyzing ? state.analyzedAddress : null) ??
+    storedForNetwork?.address ??
+    null;
 
   const analyze = useCallback(async (address: string, networkOverride?: StellarNetwork) => {
     const selected = networkOverride ?? network;
-    setState((prev) => ({ ...prev, isAnalyzing: true, error: null, analysis: null, analyzedAddress: address }));
+    setState({
+      analyzedAddress: address,
+      analysis: null,
+      resultNetwork: selected,
+      isAnalyzing: true,
+      error: null,
+    });
     clearStoredResults();
     try {
       const result = await analyzeWallet(address, selected);
       setState({
         analyzedAddress: address,
         analysis: result,
+        resultNetwork: selected,
         isAnalyzing: false,
         error: null,
       });
@@ -75,6 +103,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setState({
       analyzedAddress: null,
       analysis: null,
+      resultNetwork: null,
       isAnalyzing: false,
       error: null,
     });
@@ -83,7 +112,16 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
   return (
     <AnalysisContext.Provider
-      value={{ ...state, analysis, analyzedAddress, network, analyze, setNetwork, clear }}
+      value={{
+        analysis,
+        analyzedAddress,
+        isAnalyzing: state.isAnalyzing,
+        error: state.error,
+        network,
+        analyze,
+        setNetwork,
+        clear,
+      }}
     >
       {children}
     </AnalysisContext.Provider>

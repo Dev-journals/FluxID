@@ -94,8 +94,33 @@ export class ContractService {
     return Boolean(this.contractId);
   }
 
+  private static readonly RPC_TIMEOUT_MS = 30_000;
+
   private getServer(): rpc.Server {
-    return new rpc.Server(this.rpcUrl, { allowHttp: this.rpcUrl.startsWith('http://') });
+    return new rpc.Server(this.rpcUrl, {
+      allowHttp: this.rpcUrl.startsWith('http://'),
+      timeout: ContractService.RPC_TIMEOUT_MS,
+    });
+  }
+
+  private describeRpcError(error: unknown): string {
+    const err = error as { code?: string; message?: string; response?: { status?: number } };
+    const status = err.response?.status;
+    const message = err.message ?? String(error);
+
+    if (err.code === 'ECONNABORTED' || /timeout/i.test(message)) {
+      return `RPC request to ${this.rpcUrl} timed out`;
+    }
+    if (status === 429) {
+      return `RPC provider ${this.rpcUrl} rate-limited the request (429)`;
+    }
+    if (status && status >= 500) {
+      return `RPC provider ${this.rpcUrl} returned a server error (${status})`;
+    }
+    if (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN') {
+      return `RPC host ${this.rpcUrl} could not be resolved (DNS failure)`;
+    }
+    return message;
   }
 
   private async getSimulationSource(server: rpc.Server, fallbackPublicKey?: string) {
@@ -291,7 +316,7 @@ export class ContractService {
     const hashScVal = xdr.ScVal.scvBytes(hashBuffer);
 
     try {
-      const server = new rpc.Server(this.rpcUrl, { allowHttp: this.rpcUrl.startsWith('http://') });
+      const server = this.getServer();
       const admin = Keypair.fromSecret(this.adminSecret as string);
       const contract = new Contract(this.contractId as string);
 
@@ -343,9 +368,9 @@ export class ContractService {
       logger.warn({ wallet, status, txHash: sendResult.hash }, 'Contract sync did not confirm');
       return { success: false, txHash: sendResult.hash, error: `Final status: ${status}` };
     } catch (error) {
-      const err = error as Error;
-      logger.error({ error: err.message, wallet }, 'Contract sync threw');
-      return { success: false, error: err.message };
+      const message = this.describeRpcError(error);
+      logger.error({ error: message, wallet }, 'Contract sync threw');
+      return { success: false, error: message };
     }
   }
 }
