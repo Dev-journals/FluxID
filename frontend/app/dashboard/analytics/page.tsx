@@ -149,6 +149,7 @@ export default function AnalyticsPage() {
             data={analysis.flowSummary}
             assets={analysis.assets}
             usd={analysis.usd}
+            holdings={analysis.holdings}
           />
 
           <AssetBreakdown assets={analysis.assets} usd={analysis.usd} />

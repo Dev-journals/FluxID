@@ -4,6 +4,10 @@ import {
   horizonAnalyzeError,
   isHorizonNotFound,
   resolveAnalyzeAddress,
+  formatTransactionCount,
+  computeAssetsBreakdown,
+  holdingsFromBalances,
+  assetKindsLabel,
   type LiquidityMetrics,
 } from "./scoring";
 
@@ -85,5 +89,76 @@ describe("horizonAnalyzeError", () => {
     expect(horizonAnalyzeError(new Error("Network request failed"), "mainnet")).toBe(
       "Wallet analysis failed on mainnet. Network request failed"
     );
+  });
+});
+
+describe("formatTransactionCount", () => {
+  it("shows a count when Horizon returned activity", () => {
+    expect(formatTransactionCount(12)).toBe("12");
+  });
+
+  it("says No transactions found instead of 0 transactions", () => {
+    expect(formatTransactionCount(0)).toBe("No transactions found");
+  });
+});
+
+describe("assetKindsLabel", () => {
+  it("lists held assets even when payment flow is empty", () => {
+    expect(
+      assetKindsLabel(
+        { inflow: { XLM: 0, USDC: 0, other: [] }, outflow: { XLM: 0, USDC: 0, other: [] } },
+        [{ code: "XLM", balance: 12 }, { code: "USDC", issuer: "GISS", balance: 5 }]
+      )
+    ).toBe("XLM, USDC");
+  });
+
+  it("does not report None when a trustline-only wallet still holds XLM", () => {
+    expect(assetKindsLabel(undefined, [{ code: "XLM", balance: 1 }])).toBe("XLM");
+  });
+
+  it("returns None only when there are no holdings and no flow assets", () => {
+    expect(
+      assetKindsLabel({
+        inflow: { XLM: 0, USDC: 0, other: [] },
+        outflow: { XLM: 0, USDC: 0, other: [] },
+      })
+    ).toBe("None");
+  });
+});
+
+describe("holdingsFromBalances", () => {
+  it("detects native and credit balances and skips zeros", () => {
+    const holdings = holdingsFromBalances([
+      { asset_type: "native", balance: "10.5" },
+      { asset_type: "credit_alphanum4", asset_code: "USDC", asset_issuer: "GISSUER", balance: "3" },
+      { asset_type: "credit_alphanum4", asset_code: "DEAD", balance: "0" },
+    ]);
+    expect(holdings).toEqual([
+      { code: "XLM", balance: 10.5 },
+      { code: "USDC", issuer: "GISSUER", balance: 3 },
+    ]);
+  });
+});
+
+describe("computeAssetsBreakdown", () => {
+  it("counts a create_account credit as XLM inflow", () => {
+    const assets = computeAssetsBreakdown(
+      [
+        {
+          id: "op-1",
+          type: "create_account",
+          from: "GFUNDER",
+          to: SAMPLE_G,
+          amount: "0",
+          asset_type: "native",
+          created_at: "2024-01-01T00:00:00Z",
+          starting_balance: "20",
+          account: SAMPLE_G,
+          funder: "GFUNDER",
+        },
+      ],
+      SAMPLE_G
+    );
+    expect(assets.inflow.XLM).toBe(20);
   });
 });

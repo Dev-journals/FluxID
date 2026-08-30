@@ -62,6 +62,16 @@ export function useStoredNetwork(): [StellarNetwork, (network: StellarNetwork) =
   return [network, setNetwork];
 }
 
+const ANALYSIS_CHANGE_EVENT = "fluxid-analysis-change";
+
+let analysisSnapshot: StoredAnalysis | null = null;
+let analysisRaw: string | null | undefined = undefined;
+
+function rememberAnalysisSnapshot(raw: string | null, parsed: StoredAnalysis | null) {
+  analysisRaw = raw;
+  analysisSnapshot = parsed;
+}
+
 export function parseStoredAnalysis(raw: string | null): StoredAnalysis | null {
   if (!raw) return null;
   try {
@@ -88,10 +98,32 @@ export function readStoredAddress(): string | null {
 export function readStoredAnalysis(): StoredAnalysis | null {
   if (typeof window === "undefined") return null;
   try {
-    return parseStoredAnalysis(window.localStorage.getItem(LS_ANALYSIS));
+    const raw = window.localStorage.getItem(LS_ANALYSIS);
+    if (raw === analysisRaw) return analysisSnapshot;
+    const parsed = parseStoredAnalysis(raw);
+    rememberAnalysisSnapshot(raw, parsed);
+    return parsed;
   } catch {
     return null;
   }
+}
+
+export function subscribeStoredAnalysis(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const onCustom = () => onStoreChange();
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === LS_ANALYSIS || e.key === LS_ADDRESS || e.key === null) onStoreChange();
+  };
+  window.addEventListener(ANALYSIS_CHANGE_EVENT, onCustom);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(ANALYSIS_CHANGE_EVENT, onCustom);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+export function useStoredAnalysis(): StoredAnalysis | null {
+  return useSyncExternalStore(subscribeStoredAnalysis, readStoredAnalysis, () => null);
 }
 
 export function writeStoredAnalysis(
@@ -101,11 +133,12 @@ export function writeStoredAnalysis(
 ): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(
-      LS_ANALYSIS,
-      JSON.stringify({ address, network, analysis } satisfies StoredAnalysis)
-    );
+    const payload: StoredAnalysis = { address, network, analysis };
+    const raw = JSON.stringify(payload);
+    window.localStorage.setItem(LS_ANALYSIS, raw);
     window.localStorage.setItem(LS_ADDRESS, address);
+    rememberAnalysisSnapshot(raw, payload);
+    window.dispatchEvent(new Event(ANALYSIS_CHANGE_EVENT));
   } catch {
     // private mode / quota — in-memory state still holds the result
   }
@@ -114,10 +147,14 @@ export function writeStoredAnalysis(
 export function clearStoredResults(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(LS_ANALYSIS);
+  rememberAnalysisSnapshot(null, null);
+  window.dispatchEvent(new Event(ANALYSIS_CHANGE_EVENT));
 }
 
 export function clearStoredAnalysis(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(LS_ANALYSIS);
   window.localStorage.removeItem(LS_ADDRESS);
+  rememberAnalysisSnapshot(null, null);
+  window.dispatchEvent(new Event(ANALYSIS_CHANGE_EVENT));
 }

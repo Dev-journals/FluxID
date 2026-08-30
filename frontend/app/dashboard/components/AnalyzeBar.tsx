@@ -12,6 +12,7 @@ import {
   resolveAnalyzeAddress,
   type StellarNetwork,
 } from "../../../lib/scoring";
+import { FREIGHTER_DOWNLOAD_URL } from "../../../lib/freighterDetect";
 
 export default function AnalyzeBar() {
   const {
@@ -22,7 +23,7 @@ export default function AnalyzeBar() {
     analyze,
     setNetwork,
   } = useAnalysis();
-  const { publicKey: walletAddress, isConnected, isLoading: isConnecting, connect } = useFreighter();
+  const { publicKey: walletAddress, isConnected, isLoading: isConnecting, isInstalled, connect } = useFreighter();
   const { showToast } = useToast();
 
   const [input, setInput] = useState("");
@@ -70,8 +71,9 @@ export default function AnalyzeBar() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 mb-6 overflow-hidden"
+      className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 mb-6 overflow-x-hidden"
       id="tour-wallet-input"
+      style={{ touchAction: "manipulation" }}
     >
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 min-w-0">
         <input
@@ -84,7 +86,11 @@ export default function AnalyzeBar() {
           placeholder="Enter any Stellar wallet address (G...)"
           spellCheck={false}
           autoComplete="off"
-          className="w-full min-w-0 sm:flex-1 sm:min-w-[260px] px-4 py-3 rounded-xl bg-background border border-white/10 focus:border-primary outline-none text-sm font-mono"
+          autoCorrect="off"
+          autoCapitalize="off"
+          inputMode="text"
+          className="w-full min-w-0 sm:flex-1 px-4 py-3 rounded-xl bg-background border border-white/10 focus:border-primary outline-none font-mono"
+          style={{ fontSize: 16, touchAction: "manipulation" }}
         />
         {/* On mobile these two share a row (toggle left, Analyze right); on
             sm+ the wrapper dissolves so they flow inline with the input. */}
@@ -148,8 +154,21 @@ export default function AnalyzeBar() {
             ? `Use my wallet (${truncateAddress(walletAddress)})`
             : isConnecting
               ? "Connecting…"
-              : "Connect Freighter to autofill your address"}
+              : isInstalled
+                ? "Connect Freighter to autofill your address"
+                : "Freighter not detected"}
         </button>
+        {!isInstalled && !isConnected && (
+          <a
+            href={FREIGHTER_DOWNLOAD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "var(--foreground-muted)", fontSize: 12 }}
+            className="underline"
+          >
+            Download Freighter — required to connect a wallet on this device
+          </a>
+        )}
         <span style={{ color: "var(--foreground-dim)", fontSize: 11 }} className="flex items-center gap-1">
           <Info size={11} />
           {analyzedAddress

@@ -5,25 +5,29 @@ import type { UsdValuation } from "./scoring";
 
 const COINGECKO_URL =
   "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd";
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
-// Module-level in-flight promise so concurrent hook instances during the same
-// render cycle share a single fetch instead of each firing their own request.
 let inFlight: Promise<number | null> | null = null;
+let cached: { value: number; expiresAt: number } | null = null;
 
 async function fetchXlmPriceOnce(): Promise<number | null> {
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
   if (inFlight) return inFlight;
   inFlight = (async () => {
     try {
       const res = await fetch(COINGECKO_URL, {
         signal: AbortSignal.timeout(4000),
+        headers: { accept: "application/json" },
       });
       if (!res.ok) return null;
       const data = (await res.json()) as { stellar?: { usd?: number } };
-      return data?.stellar?.usd ?? null;
+      const usd = data?.stellar?.usd;
+      if (typeof usd !== "number" || !Number.isFinite(usd) || usd <= 0) return null;
+      cached = { value: usd, expiresAt: Date.now() + CACHE_TTL_MS };
+      return usd;
     } catch {
       return null;
     } finally {
-      // Clear so the next page-load / hard refresh can re-fetch.
       inFlight = null;
     }
   })();
@@ -31,25 +35,17 @@ async function fetchXlmPriceOnce(): Promise<number | null> {
 }
 
 /**
- * Returns the XLM/USD price to use in a component.
- *
- * Priority:
- *   1. `usd.xlmPriceUsd` — already resolved by the backend, use it directly.
- *   2. A single shared CoinGecko fetch — all hook instances share the same
- *      in-flight request so only ONE network call is made per page load.
- *
- * Pass `usd` whenever the component already receives a UsdValuation prop so
- * the frontend fetch is skipped entirely when the backend has a price.
+ * Live XLM/USD from CoinGecko. Backend `usd.xlmPriceUsd` is a fallback only
+ * when the market fetch fails — a stale backend quote must not win.
  */
 export function useXlmPrice(usd?: UsdValuation): number | null {
-  const backendPrice = usd?.xlmPriceUsd ?? null;
-  const [frontendPrice, setFrontendPrice] = useState<number | null>(null);
+  const backendPrice =
+    typeof usd?.xlmPriceUsd === "number" && usd.xlmPriceUsd > 0 ? usd.xlmPriceUsd : null;
+  const [frontendPrice, setFrontendPrice] = useState<number | null>(cached?.value ?? null);
 
   useEffect(() => {
-    // Skip the fetch if the backend already provided a price.
-    if (backendPrice !== null) return;
     fetchXlmPriceOnce().then(setFrontendPrice);
-  }, [backendPrice]);
+  }, []);
 
-  return backendPrice ?? frontendPrice;
+  return frontendPrice ?? backendPrice;
 }

@@ -1,16 +1,13 @@
 "use client";
 
 import { ReactNode } from "react";
-import Header from "@/app/components/Header";
 import Sidebar from "@/app/components/Sidebar";
-import { AnalysisProvider } from "./context/AnalysisContext";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <AnalysisProvider>
       <div className="min-h-screen" style={{ background: "var(--background)" }}>
         <Sidebar />
-        <div className="dashboard-shell fixed left-4 right-4 bottom-[84px] top-[112px] lg:right-4 lg:bottom-4 transition-all duration-300">
+        <div className="dashboard-shell fixed left-4 right-4 bottom-[84px] top-[112px] lg:right-4 lg:bottom-4 transition-all duration-300 overflow-x-hidden">
           <style dangerouslySetInnerHTML={{__html: `
             @media (min-width: 1024px) {
               .dashboard-shell {
@@ -36,6 +33,5 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>
-    </AnalysisProvider>
   );
 }

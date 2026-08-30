@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -13,8 +12,7 @@ import { logEvent } from "../../../lib/metricsApi";
 import {
   clearStoredAnalysis,
   clearStoredResults,
-  readStoredAddress,
-  readStoredAnalysis,
+  useStoredAnalysis,
   useStoredNetwork,
   writeStoredAnalysis,
 } from "../../../lib/dashboardStorage";
@@ -37,6 +35,7 @@ const AnalysisContext = createContext<AnalysisContextValue | undefined>(undefine
 
 export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [network, setNetwork] = useStoredNetwork();
+  const stored = useStoredAnalysis();
   const [state, setState] = useState<AnalysisState>({
     analyzedAddress: null,
     analysis: null,
@@ -44,19 +43,12 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     error: null,
   });
 
-  useEffect(() => {
-    const stored = readStoredAnalysis();
-    const address = stored?.address ?? readStoredAddress();
-    setState((prev) => ({
-      ...prev,
-      analyzedAddress: address,
-      analysis: stored?.analysis ?? null,
-    }));
-  }, []);
+  const analysis = state.isAnalyzing ? null : (state.analysis ?? stored?.analysis ?? null);
+  const analyzedAddress = state.analyzedAddress ?? stored?.address ?? null;
 
   const analyze = useCallback(async (address: string, networkOverride?: StellarNetwork) => {
     const selected = networkOverride ?? network;
-    setState((prev) => ({ ...prev, isAnalyzing: true, error: null, analysis: null }));
+    setState((prev) => ({ ...prev, isAnalyzing: true, error: null, analysis: null, analyzedAddress: address }));
     clearStoredResults();
     try {
       const result = await analyzeWallet(address, selected);
@@ -80,17 +72,19 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   }, [network]);
 
   const clear = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
+    setState({
       analyzedAddress: null,
       analysis: null,
+      isAnalyzing: false,
       error: null,
-    }));
+    });
     clearStoredAnalysis();
   }, []);
 
   return (
-    <AnalysisContext.Provider value={{ ...state, network, analyze, setNetwork, clear }}>
+    <AnalysisContext.Provider
+      value={{ ...state, analysis, analyzedAddress, network, analyze, setNetwork, clear }}
+    >
       {children}
     </AnalysisContext.Provider>
   );

@@ -12,6 +12,8 @@ import { useToast } from "../components/Toast";
 import { logEvent } from "../../lib/metricsApi";
 import { readStoredNetwork, subscribeStoredNetwork } from "../../lib/dashboardStorage";
 import type { StellarNetwork } from "../../lib/scoring";
+import { isConnected, requestAccess, getAddress } from "@stellar/freighter-api";
+import { currentFreighterHost, isFreighterInjected, FREIGHTER_DOWNLOAD_URL } from "../../lib/freighterDetect";
 
 import {
   StellarWalletsKit,
@@ -62,7 +64,7 @@ interface WalletContextValue extends WalletState {
 }
 
 const initialState: WalletState = {
-  isInstalled: true, 
+  isInstalled: false,
   isConnected: false,
   publicKey: null,
   isLoading: false,
@@ -80,17 +82,20 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
     const unsub = subscribeStoredNetwork(() => {
       StellarWalletsKit.setNetwork(kitPassphrase(readStoredNetwork()));
     });
+    const installed = isFreighterInjected(currentFreighterHost());
+    setState((prev) => ({ ...prev, isInstalled: installed }));
     const restoreSession = async () => {
       try {
         const { address } = await StellarWalletsKit.getAddress();
         if (address) {
           setState((prev) => ({
             ...prev,
+            isInstalled: true,
             isConnected: true,
             publicKey: address,
           }));
         }
-      } catch (err) {
+      } catch {
         // No active session or rejected, ignore silently
       }
     };
@@ -100,11 +105,43 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
 
   const connect = useCallback(async () => {
     try {
-      initKit();
       setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-      const { address } = await StellarWalletsKit.authModal();
-      
+      let present = isFreighterInjected(currentFreighterHost());
+      if (!present) {
+        try {
+          const status = await isConnected();
+          present = !status.error && status.isConnected;
+        } catch {
+          present = false;
+        }
+      }
+
+      if (!present) {
+        const errMsg = "Freighter is not installed. Download Freighter, then try connecting again.";
+        setState((prev) => ({
+          ...prev,
+          isInstalled: false,
+          isLoading: false,
+          error: errMsg,
+        }));
+        showToast(errMsg, "error");
+        return;
+      }
+
+      const access = await requestAccess();
+      if (access.error) {
+        throw new Error(typeof access.error === "string" ? access.error : "Freighter access was denied.");
+      }
+      let address = access.address;
+      if (!address) {
+        const got = await getAddress();
+        if (got.error || !got.address) {
+          throw new Error("Freighter did not return an address.");
+        }
+        address = got.address;
+      }
+
       setState({
         isInstalled: true,
         isConnected: true,
@@ -113,7 +150,6 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
         error: null,
       });
       showToast(`Connected to wallet`, "success");
-      // Best-effort usage log — proof of a real wallet interaction. Never blocks connect.
       void logEvent("wallet_connect", address, readStoredNetwork());
     } catch (err) {
       console.error("Wallet selection error:", err);
@@ -122,7 +158,7 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
       if (errMsg.toLowerCase().includes("reject") || errMsg.toLowerCase().includes("decline") || errMsg.toLowerCase().includes("cancel")) {
         errMsg = "Wallet connection rejected by user.";
       } else if (errMsg.toLowerCase().includes("not found") || errMsg.toLowerCase().includes("not installed")) {
-        errMsg = `Wallet is not installed or not found.`;
+        errMsg = `Freighter is not installed. Download it at ${FREIGHTER_DOWNLOAD_URL}`;
       }
       
       setState((prev) => ({
@@ -141,7 +177,7 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
       // ignore
     }
     setState({
-      isInstalled: true,
+      isInstalled: isFreighterInjected(currentFreighterHost()),
       isConnected: false,
       publicKey: null,
       isLoading: false,
