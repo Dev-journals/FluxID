@@ -2,19 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquarePlus, Star, X, Send } from "lucide-react";
+import { MessageSquarePlus, Star, X, Send, ExternalLink } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useFreighter } from "../context/FreighterContext";
 import { useToast } from "./Toast";
 import { submitFeedback } from "../../lib/metricsApi";
+import { FEEDBACK_FORM_URL } from "../../lib/constants";
 
-// Custom event name other components dispatch to open this modal (e.g. the
-// dashboard "Join Beta" CTA). Kept decoupled so no prop-drilling is needed.
+// Custom event name other components dispatch to open this modal.
 export const OPEN_FEEDBACK_EVENT = "fluxid:open-feedback";
 
-// App-wide feedback widget: a floating button that opens a rating + message
-// modal and posts to the backend /feedback endpoint. Mounted once in
-// ClientLayout so it's available on every route.
+// App-wide feedback widget: a floating button that expands on hover to reveal
+// a short CTA with links to the Google Form and the in-app feedback modal.
+// Clicking either link or the button itself opens the appropriate action.
+// Mounted once in ClientLayout so it's available on every dashboard route.
 export default function Feedback() {
   const pathname = usePathname();
   const { publicKey } = useFreighter();
@@ -60,19 +61,69 @@ export default function Feedback() {
     }
   };
 
+  const openInAppFeedback = () => {
+    window.dispatchEvent(new CustomEvent(OPEN_FEEDBACK_EVENT));
+  };
+
   return (
     <>
       {/* Floating trigger — sits above the mobile bottom-nav (bottom-24) so they don't overlap */}
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Send feedback"
-        className={`fixed right-4 z-40 flex items-center gap-2 card-primary px-4 py-3 rounded-full font-bold text-[var(--background)] shadow-2xl hover:opacity-90 transition-opacity ${
+      <div
+        className={`fixed right-4 z-40 group ${
           onSettingsPage ? "bottom-32 lg:bottom-28" : "bottom-24 lg:bottom-6"
         }`}
       >
-        <MessageSquarePlus size={18} />
-        <span className="hidden sm:inline text-sm">Feedback</span>
-      </button>
+        {/* Collapsed button */}
+        <button
+          onClick={openInAppFeedback}
+          aria-label="Send feedback"
+          className="flex items-center gap-2 card-primary px-4 py-3 rounded-full font-bold text-[var(--background)] shadow-2xl hover:opacity-90 transition-opacity"
+        >
+          <MessageSquarePlus size={18} />
+          <span className="hidden sm:inline text-sm">Feedback / Join Beta</span>
+        </button>
+
+        {/* Hover card — expands above the button on hover */}
+        <div className="absolute bottom-full mb-3 right-0 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
+          <div className="card p-4 shadow-2xl">
+            <h3
+              style={{ color: "var(--foreground)", fontWeight: 800, fontSize: 14 }}
+              className="mb-1"
+            >
+              Give feedback &amp; join the beta
+            </h3>
+            <p
+              style={{
+                color: "var(--foreground-muted)",
+                fontSize: 12,
+                lineHeight: 1.5,
+              }}
+              className="mb-3"
+            >
+              Your input shapes what we build next. Give formal feedback on the
+              Google Form, or drop a quick note in-app to join the beta.
+            </p>
+            <div className="flex items-center gap-2">
+              <a
+                href={FEEDBACK_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="card-primary inline-flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-[var(--background)] text-xs hover:opacity-90 transition-opacity"
+              >
+                <ExternalLink size={12} />
+                Give Feedback
+              </a>
+              <button
+                onClick={openInAppFeedback}
+                className="pressed inline-flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-[var(--foreground)] text-xs hover:opacity-90 transition-opacity"
+              >
+                <MessageSquarePlus size={12} />
+                Join Beta
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <AnimatePresence>
         {open && (

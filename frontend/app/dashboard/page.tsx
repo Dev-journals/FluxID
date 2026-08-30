@@ -9,7 +9,6 @@ import AnimatedScore from "../components/AnimatedScore";
 import OnChainSync from "../components/OnChainSync";
 import { ScoreSkeleton } from "../components/Skeletons";
 import Onboarding from "../components/Onboarding";
-import FeedbackCTA from "../components/FeedbackCTA";
 import { useAnalysis } from "./context/AnalysisContext";
 import AnalyzeBar from "./components/AnalyzeBar";
 import { formatTransactionCount } from "../../lib/scoring";
@@ -82,8 +81,6 @@ export default function Dashboard() {
           </p>
         </div>
       )}
-
-      <FeedbackCTA />
 
       <Onboarding isOpen={showOnboarding} onClose={closeOnboarding} initialStep={tourStartStep} />
     </>
