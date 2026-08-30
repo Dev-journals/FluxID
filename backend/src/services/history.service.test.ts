@@ -68,4 +68,27 @@ describe('protocol history persistence', () => {
     expect(await clearProtocolHistory('mainnet')).toBe(1);
     expect(await getAllProtocolHistory({ network: 'mainnet' })).toHaveLength(0);
   });
+
+  it('keeps concurrent appends on the same in-memory log', async () => {
+    const { appendProtocolHistory, getAllProtocolHistory } = await loadHistory();
+    const other = 'GBACI4PCHZQXZFAADCMG4TICARUDZAGF5CI3A4RPTD7SOSW2VPKLGDCX';
+    await Promise.all([
+      appendProtocolHistory({
+        wallet: SAMPLE,
+        network: 'mainnet',
+        score: 81,
+        risk: 'Low',
+        timestamp: Date.now(),
+      }),
+      appendProtocolHistory({
+        wallet: other,
+        network: 'mainnet',
+        score: 40,
+        risk: 'Medium',
+        timestamp: Date.now(),
+      }),
+    ]);
+    const entries = await getAllProtocolHistory({ network: 'mainnet' });
+    expect(entries).toHaveLength(2);
+  });
 });

@@ -20,6 +20,19 @@ const LEGACY_HISTORY_FILE = path.join(DATA_DIR, 'score_history.jsonl');
 // copy so a failed/ephemeral disk write (Render free tier) cannot report
 // "scored 3/3" and then serve empty aggregations from the same instance.
 let protocolMemory: ScoreHistoryEntry[] | null = null;
+let protocolHydrate: Promise<ScoreHistoryEntry[]> | null = null;
+
+async function loadProtocolMemory(): Promise<ScoreHistoryEntry[]> {
+  if (protocolMemory) return protocolMemory;
+  if (!protocolHydrate) {
+    protocolHydrate = readEntries(PROTOCOL_HISTORY_FILE).then((entries) => {
+      if (!protocolMemory) protocolMemory = entries;
+      return protocolMemory;
+    });
+  }
+  await protocolHydrate;
+  return protocolMemory as ScoreHistoryEntry[];
+}
 
 let dirEnsured = false;
 async function ensureDataDir(): Promise<void> {
@@ -108,12 +121,6 @@ export async function getWalletHistory(
 export interface AllHistoryQueryOptions {
   network?: NetworkType;
   since?: number;
-}
-
-async function loadProtocolMemory(): Promise<ScoreHistoryEntry[]> {
-  if (protocolMemory) return protocolMemory;
-  protocolMemory = await readEntries(PROTOCOL_HISTORY_FILE);
-  return protocolMemory;
 }
 
 export async function appendProtocolHistory(entry: ScoreHistoryEntry): Promise<void> {

@@ -55,7 +55,7 @@ async function loadProtocol() {
 
 describe('protocol scoring persistence', () => {
   it('persists scored wallets so health and cohorts on that network are non-zero', async () => {
-    const { addWalletsToProtocol, getHealthMetrics, getCohorts } = await loadProtocol();
+    const { addWalletsToProtocol, getHealthMetrics, getSegments } = await loadProtocol();
 
     const added = await addWalletsToProtocol([WALLET_A, WALLET_B], 'mainnet');
     expect(added.scored).toBe(2);
@@ -65,9 +65,8 @@ describe('protocol scoring persistence', () => {
     expect(health.totalWallets).toBe(2);
     expect(health.avgScore).toBeGreaterThan(0);
 
-    const { cohorts } = await getCohorts('mainnet');
-    const totalCount = cohorts.reduce((sum, c) => sum + c.count, 0);
-    expect(totalCount).toBeGreaterThan(0);
+    const segments = await getSegments('mainnet');
+    expect(segments.total).toBe(2);
 
     const other = await getHealthMetrics('testnet');
     expect(other.totalWallets).toBe(0);
