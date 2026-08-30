@@ -27,11 +27,10 @@ async function loadProtocolMemory(): Promise<ScoreHistoryEntry[]> {
   if (!protocolHydrate) {
     protocolHydrate = readEntries(PROTOCOL_HISTORY_FILE).then((entries) => {
       if (!protocolMemory) protocolMemory = entries;
-      return protocolMemory;
+      return protocolMemory ?? entries;
     });
   }
-  await protocolHydrate;
-  return protocolMemory as ScoreHistoryEntry[];
+  return protocolHydrate;
 }
 
 let dirEnsured = false;
