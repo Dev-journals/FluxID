@@ -133,7 +133,7 @@ export interface UsageStats {
   recentWallets: Array<{ wallet: string; lastSeen: number; events: number }>;
 }
 
-export async function getUsageStats(): Promise<UsageStats> {
+export async function getUsageStats(opts?: { limit?: number; search?: string }): Promise<UsageStats> {
   const events = await readLines<UsageEvent>(EVENTS_FILE);
   const byType: Record<string, number> = {};
   const wallets = new Map<string, { lastSeen: number; events: number }>();
@@ -153,10 +153,17 @@ export async function getUsageStats(): Promise<UsageStats> {
     }
   }
 
-  const recentWallets = [...wallets.entries()]
+  let recentWallets = [...wallets.entries()]
     .map(([wallet, v]) => ({ wallet, lastSeen: v.lastSeen, events: v.events }))
-    .sort((a, b) => b.lastSeen - a.lastSeen)
-    .slice(0, 50);
+    .sort((a, b) => b.lastSeen - a.lastSeen);
+
+  if (opts?.search) {
+    const q = opts.search.toLowerCase();
+    recentWallets = recentWallets.filter((w) => w.wallet.toLowerCase().includes(q));
+  }
+
+  const limit = opts?.limit && opts.limit > 0 ? opts.limit : 50;
+  recentWallets = recentWallets.slice(0, limit);
 
   return {
     totalEvents: events.length,

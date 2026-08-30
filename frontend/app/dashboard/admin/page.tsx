@@ -72,6 +72,8 @@ export default function AdminPage() {
   const [loadingData, setLoadingData] = useState(false);
   const [feedbackModal, setFeedbackModal] = useState(false);
   const [feedbackQuery, setFeedbackQuery] = useState("");
+  const [walletModal, setWalletModal] = useState(false);
+  const [walletQuery, setWalletQuery] = useState("");
 
   const loadData = useCallback(async () => {
     setLoadingData(true);
@@ -421,7 +423,7 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody>
-              {stats.recentWallets.map((w) => (
+              {stats.recentWallets.slice(0, 15).map((w) => (
                 <tr key={w.wallet} style={{ color: "var(--foreground)" }} className="border-t border-[var(--border)]">
                   <td className="py-2 font-mono">{truncateAddress(w.wallet)}</td>
                   <td className="py-2">{w.events}</td>
@@ -430,6 +432,14 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+          {stats.recentWallets.length > 15 && (
+            <button
+              onClick={() => setWalletModal(true)}
+              className="btn btn-outline w-full mt-3"
+            >
+              View all {stats.recentWallets.length} wallets
+            </button>
+          )}
         </div>
       )}
 
@@ -674,6 +684,75 @@ export default function AdminPage() {
                   );
                 }
                 return rows.map((f, i) => <FeedbackRow key={i} f={f} />);
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full wallets modal — scrollable + filterable, mirrors the feedback modal pattern. */}
+      {walletModal && stats && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+          onClick={() => setWalletModal(false)}
+        >
+          <div
+            className="card w-full max-w-2xl max-h-[85vh] flex flex-col p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 style={{ color: "var(--foreground)", fontWeight: 800, fontSize: 18 }}>
+                All wallets ({stats.recentWallets.length})
+              </h3>
+              <button onClick={() => setWalletModal(false)} className="btn btn-outline p-2">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="relative mb-4">
+              <Search
+                size={16}
+                style={{ color: "var(--foreground-muted)" }}
+                className="absolute left-3 top-1/2 -translate-y-1/2"
+              />
+              <input
+                value={walletQuery}
+                onChange={(e) => setWalletQuery(e.target.value)}
+                placeholder="Filter by wallet address..."
+                className="w-full pressed pl-9 pr-4 py-3 rounded-xl text-[var(--foreground)] outline-none text-sm"
+              />
+            </div>
+            <div className="overflow-y-auto pr-1">
+              {(() => {
+                const q = walletQuery.trim().toLowerCase();
+                const rows = q
+                  ? stats.recentWallets.filter((w) => w.wallet.toLowerCase().includes(q))
+                  : stats.recentWallets;
+                if (rows.length === 0) {
+                  return (
+                    <p style={{ color: "var(--foreground-muted)", fontSize: 14 }}>No matching wallets.</p>
+                  );
+                }
+                return (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ color: "var(--foreground-muted)" }} className="text-left">
+                        <th className="pb-2 font-medium">Wallet</th>
+                        <th className="pb-2 font-medium">Events</th>
+                        <th className="pb-2 font-medium">Last seen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((w) => (
+                        <tr key={w.wallet} style={{ color: "var(--foreground)" }} className="border-t border-[var(--border)]">
+                          <td className="py-2 font-mono">{truncateAddress(w.wallet)}</td>
+                          <td className="py-2">{w.events}</td>
+                          <td className="py-2">{new Date(w.lastSeen).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
               })()}
             </div>
           </div>

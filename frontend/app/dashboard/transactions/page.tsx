@@ -327,7 +327,9 @@ export default function TransactionsPage() {
             {filtered.length === 0 ? (
               <div className="p-8 text-center">
                 <p style={{ color: "var(--foreground-muted)", fontSize: 13 }}>
-                  No transactions matching the filter.
+                  {txs.length === 0
+                    ? "No transactions found"
+                    : "No transactions matching the filter."}
                 </p>
               </div>
             ) : (

@@ -1,16 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { AssetsBreakdown, FlowSummary as FlowSummaryType, UsdValuation } from "../../lib/scoring";
+import { AssetsBreakdown, FlowSummary as FlowSummaryType, UsdValuation, WalletHolding, formatTransactionCount, assetKindsLabel } from "../../lib/scoring";
 import { ArrowDownLeft, ArrowUpRight, Activity, Coins, ArrowLeftRight } from "lucide-react";
-
-const COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd";
+import { useXlmPrice } from "../../lib/useXlmPrice";
 
 interface FlowSummaryProps {
   data: FlowSummaryType | null;
   assets?: AssetsBreakdown;
   usd?: UsdValuation;
+  holdings?: WalletHolding[];
   isLoading?: boolean;
   className?: string;
 }
@@ -21,18 +20,6 @@ function formatAmount(n: number, maxFrac = 2): string {
 
 function formatUsd(n: number): string {
   return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
-}
-
-// Fetch XLM price from CoinGecko (frontend fallback)
-async function fetchXlmPrice(): Promise<number | null> {
-  try {
-    const res = await fetch(COINGECKO_URL, { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { stellar?: { usd?: number } };
-    return data?.stellar?.usd ?? null;
-  } catch {
-    return null;
-  }
 }
 
 function directionCaption(dir: { XLM: number; USDC: number; other: unknown[] }): string {
@@ -49,15 +36,8 @@ function directionCaption(dir: { XLM: number; USDC: number; other: unknown[] }):
   return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
-export default function FlowSummary({ data, assets, usd, isLoading, className = "" }: FlowSummaryProps) {
-  const [frontendPrice, setFrontendPrice] = useState<number | null>(null);
-
-  // Fetch XLM price from frontend if backend didn't provide it
-  useEffect(() => {
-    if (!usd?.xlmPriceUsd && assets) {
-      fetchXlmPrice().then(setFrontendPrice);
-    }
-  }, [usd?.xlmPriceUsd, assets]);
+export default function FlowSummary({ data, assets, usd, holdings, isLoading, className = "" }: FlowSummaryProps) {
+  const xlmPrice = useXlmPrice(usd);
 
   if (isLoading) {
     return (
@@ -71,8 +51,6 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
 
   if (!data) return null;
 
-  // Use backend price, or fallback to frontend-fetched price
-  const xlmPrice = usd?.xlmPriceUsd ?? frontendPrice;
   const hasPrice = xlmPrice !== null;
 
   // Calculate USD totals using the price
@@ -126,7 +104,7 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
     },
     {
       label: "Transactions",
-      primary: data.transactionCount.toString(),
+      primary: formatTransactionCount(data.transactionCount),
       caption: null,
       icon: Activity,
       color: "var(--primary)",
@@ -134,12 +112,10 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
     },
     {
       label: "Assets",
-      primary: assets ? assetCountLabel(assets) : ",",
+      primary: assetKindsLabel(assets, holdings),
       caption: xlmPrice
         ? `XLM = ${formatUsd(xlmPrice)}`
-        : frontendPrice
-          ? `XLM = ${formatUsd(frontendPrice)}`
-          : "XLM price unavailable",
+        : "XLM price unavailable",
       icon: Coins,
       color: "var(--foreground)",
       isPrimaryUsd: false,
@@ -209,23 +185,11 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
             : ""}
         </p>
       )}
-      {!usd?.note && (usd?.xlmPriceUsd || frontendPrice) && (
+      {!usd?.note && xlmPrice && (
         <p style={{ color: "var(--foreground-dim)", fontSize: 11 }} className="italic">
           XLM price fetched via CoinGecko
         </p>
       )}
     </div>
   );
-}
-
-function assetCountLabel(assets: AssetsBreakdown): string {
-  const kinds = new Set<string>();
-  for (const dir of [assets.inflow, assets.outflow]) {
-    if (dir.XLM > 0) kinds.add("XLM");
-    if (dir.USDC > 0) kinds.add("USDC");
-    for (const o of dir.other) kinds.add(o.code);
-  }
-  if (kinds.size === 0) return "None";
-  if (kinds.size <= 3) return Array.from(kinds).join(", ");
-  return `${kinds.size} assets`;
 }

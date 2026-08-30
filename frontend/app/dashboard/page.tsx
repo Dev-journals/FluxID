@@ -12,6 +12,7 @@ import Onboarding from "../components/Onboarding";
 import FeedbackCTA from "../components/FeedbackCTA";
 import { useAnalysis } from "./context/AnalysisContext";
 import AnalyzeBar from "./components/AnalyzeBar";
+import { formatTransactionCount } from "../../lib/scoring";
 
 const item: Variants = {
   hidden: { opacity: 0, y: 12 },
@@ -163,8 +164,10 @@ function DashboardSummary({
             </p>
           )}
           <p style={{ color: "var(--foreground-dim)", fontSize: 11 }}>
-            {analysis.metrics.transactionCount} transactions analyzed ·
-            {" "}
+            {analysis.metrics.transactionCount === 0
+              ? "No transactions found"
+              : `${formatTransactionCount(analysis.metrics.transactionCount)} transactions analyzed`}
+            {" · "}
             {analysis.explanation?.source === "llm"
               ? `Behavior Insight`
               : "Rule-based analysis"}

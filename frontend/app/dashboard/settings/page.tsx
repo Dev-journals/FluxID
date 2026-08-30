@@ -45,20 +45,20 @@ export default function SettingsPage() {
   }, []);
 
   const handleNotificationChange = (key: keyof NotificationPreferences, value: boolean) => {
-    setNotifications((prev) => {
-      const updated = { ...prev, [key]: value };
-      try {
-        localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(updated));
-      } catch {
-        // storage may be unavailable
-      }
-      return updated;
-    });
+    setNotifications((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    try {
+      localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
+      if (theme) {
+        setTheme(theme);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      // storage may be unavailable
+    }
   };
 
   if (!mounted) {
@@ -74,6 +74,7 @@ export default function SettingsPage() {
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
+      className="pb-28 lg:pb-32"
     >
         {/* Page Header */}
         <div className="flex items-center gap-3 mb-8">

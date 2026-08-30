@@ -11,6 +11,141 @@ function horizonUrlFor(network: StellarNetwork): string {
   return HORIZON_URLS[network];
 }
 
+const STELLAR_ADDRESS_RE = /^G[A-Z2-7]{55}$/;
+
+export function isValidStellarAddress(addr: string): boolean {
+  return STELLAR_ADDRESS_RE.test(addr.trim());
+}
+
+/** Prefer a typed address; fall back to the connected Freighter key. */
+export function resolveAnalyzeAddress(
+  input: string,
+  connectedAddress: string | null | undefined
+): string | null {
+  const trimmed = input.trim();
+  if (isValidStellarAddress(trimmed)) return trimmed;
+  if (connectedAddress && isValidStellarAddress(connectedAddress)) {
+    return connectedAddress.trim();
+  }
+  return null;
+}
+
+export function isHorizonNotFound(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as {
+    name?: string;
+    status?: number;
+    response?: { status?: number; statusCode?: number };
+  };
+  const status = e.response?.status ?? e.response?.statusCode ?? e.status;
+  return e.name === "NotFoundError" || status === 404;
+}
+
+export function horizonAnalyzeError(error: unknown, network: StellarNetwork): string {
+  if (isHorizonNotFound(error)) {
+    return `Account not found on ${network}. Check the address or switch network.`;
+  }
+  const detail =
+    error instanceof Error && error.message ? error.message : "Please try again.";
+  return `Wallet analysis failed on ${network}. ${detail}`;
+}
+
+export function formatTransactionCount(count: number): string {
+  return count === 0 ? "No transactions found" : String(count);
+}
+
+export function computeAssetsBreakdown(
+  payments: PaymentRecord[],
+  walletAddress: string
+): AssetsBreakdown {
+  const empty = (): AssetDirection => ({ XLM: 0, USDC: 0, other: [] });
+  const assets: AssetsBreakdown = { inflow: empty(), outflow: empty() };
+
+  const add = (dir: AssetDirection, p: PaymentRecord) => {
+    if (!p.asset_type || p.asset_type === "native") {
+      dir.XLM += parseFloat(p.amount) || 0;
+      return;
+    }
+    const code = p.asset_code ?? "";
+    if (code === "USDC") {
+      dir.USDC += parseFloat(p.amount) || 0;
+      return;
+    }
+    const existing = dir.other.find(
+      (o) => o.code === code && o.issuer === p.asset_issuer
+    );
+    if (existing) {
+      existing.amount += parseFloat(p.amount) || 0;
+      existing.count += 1;
+    } else {
+      dir.other.push({
+        code,
+        issuer: p.asset_issuer,
+        label: code,
+        amount: parseFloat(p.amount) || 0,
+        count: 1,
+      });
+    }
+  };
+
+  for (const p of payments) {
+    if (p.transaction_successful === false) continue;
+    if (p.type === "create_account") {
+      const dir = p.account === walletAddress ? assets.inflow : assets.outflow;
+      dir.XLM += parseFloat(p.starting_balance || p.amount || "0") || 0;
+      continue;
+    }
+    if (p.asset_type !== "native" && !p.asset_type?.startsWith("credit_")) continue;
+    if (p.from === walletAddress) add(assets.outflow, p);
+    else if (p.to === walletAddress) add(assets.inflow, p);
+  }
+  return assets;
+}
+
+export function holdingsFromBalances(
+  balances: Array<{
+    asset_type: string;
+    asset_code?: string;
+    asset_issuer?: string;
+    balance: string;
+  }>
+): WalletHolding[] {
+  const holdings: WalletHolding[] = [];
+  for (const b of balances) {
+    const balance = parseFloat(b.balance) || 0;
+    if (balance <= 0) continue;
+    if (b.asset_type === "native") {
+      holdings.push({ code: "XLM", balance });
+    } else if (b.asset_code) {
+      holdings.push({
+        code: b.asset_code,
+        issuer: b.asset_issuer,
+        balance,
+      });
+    }
+  }
+  return holdings;
+}
+
+export function assetKindsLabel(
+  assets?: AssetsBreakdown,
+  holdings?: WalletHolding[]
+): string {
+  const kinds = new Set<string>();
+  if (holdings && holdings.length > 0) {
+    for (const h of holdings) kinds.add(h.code);
+  } else if (assets) {
+    for (const dir of [assets.inflow, assets.outflow]) {
+      if (dir.XLM > 0) kinds.add("XLM");
+      if (dir.USDC > 0) kinds.add("USDC");
+      for (const o of dir.other) kinds.add(o.code);
+    }
+  }
+  if (kinds.size === 0) return "None";
+  if (kinds.size <= 3) return Array.from(kinds).join(", ");
+  return `${kinds.size} assets`;
+}
+
 const AI_BACKEND_URL = process.env.NEXT_PUBLIC_AI_BACKEND_URL || "";
 
 export interface LiquidityMetrics {
@@ -106,7 +241,14 @@ export interface WalletAnalysis {
   assets?: AssetsBreakdown;
   usd?: UsdValuation;
   explanation?: Explanation;
+  holdings?: WalletHolding[];
   error?: string;
+}
+
+export interface WalletHolding {
+  code: string;
+  issuer?: string;
+  balance: number;
 }
 
 type PaymentRecord = {
@@ -123,13 +265,16 @@ type PaymentRecord = {
   source_asset_code?: string;
   source_asset_issuer?: string;
   created_at: string;
-  transaction_successful?: boolean;
+  transaction_successful?: string | boolean;
+  starting_balance?: string;
+  account?: string;
+  funder?: string;
 };
 
 export async function fetchWalletPayments(
   address: string,
   network: StellarNetwork = "mainnet",
-  limit = 100
+  limit = 200
 ): Promise<PaymentRecord[]> {
   const server = new Horizon.Server(horizonUrlFor(network));
 
@@ -147,9 +292,9 @@ export async function fetchWalletPayments(
     const records = response.records as unknown as PaymentRecord[];
     return records.filter((p) => !(p.from === address && p.to === address));
   } catch (error) {
-    // 404s are expected when a wallet exists on one network but not another —
-    // return empty instead of throwing, caller handles the empty-state UX.
-    console.warn("fetchWalletPayments failed for", address, network, error);
+    if (isHorizonNotFound(error)) {
+      throw new Error(horizonAnalyzeError(error, network));
+    }
     return [];
   }
 }
@@ -157,7 +302,7 @@ export async function fetchWalletPayments(
 export async function fetchWalletPaymentsWithSwaps(
   address: string,
   network: StellarNetwork = "mainnet",
-  limit = 100
+  limit = 200
 ): Promise<{ payments: PaymentRecord[]; swapPayments: PaymentRecord[] }> {
   const server = new Horizon.Server(horizonUrlFor(network));
 
@@ -175,8 +320,48 @@ export async function fetchWalletPaymentsWithSwaps(
 
     return { payments, swapPayments };
   } catch (error) {
-    console.warn("fetchWalletPaymentsWithSwaps failed for", address, network, error);
+    if (isHorizonNotFound(error)) {
+      throw new Error(horizonAnalyzeError(error, network));
+    }
     return { payments: [], swapPayments: [] };
+  }
+}
+
+export async function fetchHorizonTransactionCount(
+  address: string,
+  network: StellarNetwork = "mainnet"
+): Promise<number> {
+  const server = new Horizon.Server(horizonUrlFor(network));
+  try {
+    const response = await server
+      .transactions()
+      .forAccount(address)
+      .limit(200)
+      .order("desc")
+      .call();
+    return response.records.length;
+  } catch (error) {
+    throw new Error(horizonAnalyzeError(error, network));
+  }
+}
+
+async function fetchAccountHoldings(
+  address: string,
+  network: StellarNetwork
+): Promise<WalletHolding[]> {
+  const server = new Horizon.Server(horizonUrlFor(network));
+  try {
+    const account = await server.loadAccount(address);
+    return holdingsFromBalances(
+      account.balances as Array<{
+        asset_type: string;
+        asset_code?: string;
+        asset_issuer?: string;
+        balance: string;
+      }>
+    );
+  } catch {
+    return [];
   }
 }
 
@@ -185,6 +370,21 @@ function parsePayments(payments: PaymentRecord[], walletAddress: string): Transa
 
   for (const p of payments) {
     if (p.transaction_successful === false) continue;
+
+    if (p.type === "create_account") {
+      const amount = parseFloat(p.starting_balance || p.amount || "0") || 0;
+      const isInflow = p.account === walletAddress;
+      parsed.push({
+        id: p.id,
+        date: new Date(p.created_at).toISOString().split("T")[0],
+        amount,
+        type: isInflow ? "inflow" : "outflow",
+        address: isInflow ? p.funder || p.from : p.account || p.to,
+        asset: "XLM",
+      });
+      continue;
+    }
+
     if (p.asset_type !== "native" && !p.asset_type?.startsWith("credit_")) continue;
 
     const amount = parseFloat(p.amount) || 0;
@@ -203,7 +403,7 @@ function parsePayments(payments: PaymentRecord[], walletAddress: string): Transa
     });
   }
 
-  return parsed.slice(0, 30);
+  return parsed;
 }
 
 export function calculateLiquidityMetrics(
@@ -367,18 +567,24 @@ function buildSwapTransactions(
 function localAnalyze(
   address: string,
   payments: PaymentRecord[],
-  swapPayments: PaymentRecord[] = []
+  swapPayments: PaymentRecord[] = [],
+  horizonTxCount?: number,
+  holdings: WalletHolding[] = []
 ): WalletAnalysis {
   const metrics = calculateLiquidityMetrics(payments, address, swapPayments);
-  const score = calculateLiquidityScore(metrics);
+  const txCount = horizonTxCount ?? metrics.transactionCount;
+  const scored = { ...metrics, transactionCount: txCount };
+  const score = calculateLiquidityScore(scored);
   const transactions = parsePayments(payments, address);
   const swapTransactions = buildSwapTransactions(swapPayments, address);
 
   return {
     score,
-    metrics,
+    metrics: scored,
     transactions: [...transactions, ...swapTransactions].sort((a, b) => b.date.localeCompare(a.date)),
-    flowSummary: calculateFlowSummary(metrics),
+    flowSummary: calculateFlowSummary(scored),
+    assets: computeAssetsBreakdown(payments, address),
+    holdings,
   };
 }
 
@@ -424,16 +630,30 @@ async function fetchFromBackend(
     const d = json.data;
     // Backend /score strips self-swaps from its metrics, so fetch both here and
     // layer swap data onto the backend numbers — otherwise the transactions tab
-    // and FlowSummary swap row show 0.
-    const { payments, swapPayments } = await fetchWalletPaymentsWithSwaps(address, network);
+    // and FlowSummary swap row show 0. Don't let a Horizon miss wipe the score.
+    let payments: PaymentRecord[] = [];
+    let swapPayments: PaymentRecord[] = [];
+    try {
+      const fetched = await fetchWalletPaymentsWithSwaps(address, network);
+      payments = fetched.payments;
+      swapPayments = fetched.swapPayments;
+    } catch {
+      // Keep the backend result; local analyzeWallet will still surface Horizon errors.
+    }
     const transactions = parsePayments(payments, address);
     const swapTransactions = buildSwapTransactions(swapPayments, address);
     const swapMetrics = calculateLiquidityMetrics([], address, swapPayments);
 
+    const txCount = await fetchHorizonTransactionCount(address, network).catch(
+      () => d.metrics.transactionCount
+    );
+    const holdings = await fetchAccountHoldings(address, network);
+    const localAssets = computeAssetsBreakdown(payments, address);
+
     const metrics: LiquidityMetrics = {
       totalInflow: d.metrics.inflowVolume,
       totalOutflow: d.metrics.outflowVolume,
-      transactionCount: d.metrics.transactionCount,
+      transactionCount: txCount,
       inflowCount: d.metrics.inflowCount,
       outflowCount: d.metrics.outflowCount,
       swaps: swapMetrics.swaps,
@@ -455,9 +675,10 @@ async function fetchFromBackend(
         b.date.localeCompare(a.date)
       ),
       flowSummary: calculateFlowSummary(metrics),
-      assets: d.assets,
+      assets: d.assets && assetKindsLabel(d.assets) !== "None" ? d.assets : localAssets,
       usd: d.usd,
       explanation: d.explanation,
+      holdings,
     };
   } catch (error) {
     console.error("Backend fetch failed:", error);
@@ -472,8 +693,20 @@ export async function analyzeWallet(
   const fromBackend = await fetchFromBackend(address, network);
   if (fromBackend) return fromBackend;
 
-  const { payments, swapPayments } = await fetchWalletPaymentsWithSwaps(address, network);
-  return localAnalyze(address, payments, swapPayments);
+  try {
+    const { payments, swapPayments } = await fetchWalletPaymentsWithSwaps(address, network);
+    const [horizonTxCount, holdings] = await Promise.all([
+      fetchHorizonTransactionCount(address, network).catch(
+        () => payments.length + swapPayments.length
+      ),
+      fetchAccountHoldings(address, network),
+    ]);
+    return localAnalyze(address, payments, swapPayments, horizonTxCount, holdings);
+  } catch (error) {
+    throw new Error(
+      error instanceof Error ? error.message : horizonAnalyzeError(error, network)
+    );
+  }
 }
 
 export function getSuggestions(score: LiquidityScore, metrics: LiquidityMetrics): string[] {

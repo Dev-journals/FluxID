@@ -80,7 +80,11 @@ export async function registerMetricsRoutes(fastify: FastifyInstance) {
   // Admin: aggregate usage stats (unique wallets, connects, score runs).
   fastify.get('/admin/stats', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!adminGuard(request, reply)) return;
-    const stats = await getUsageStats();
+    const { limit, search } = (request.query || {}) as { limit?: string; search?: string };
+    const stats = await getUsageStats({
+      limit: limit ? Number(limit) : undefined,
+      search: search || undefined,
+    });
     return reply.send({ success: true, stats });
   });
 
