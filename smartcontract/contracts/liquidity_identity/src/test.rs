@@ -280,3 +280,89 @@ fn test_get_verifiable_info_nonexistent() {
     let record = client.get_verifiable_info(&wallet);
     assert!(record.is_none());
 }
+
+#[test]
+fn test_get_score_count_starts_at_zero() {
+    let (env, _admin, contract_id) = setup();
+    env.mock_all_auths();
+
+    let client = LiquidityIdentityClient::new(&env, &contract_id);
+    assert_eq!(client.get_score_count(), 0);
+}
+
+#[test]
+fn test_get_total_wallets_starts_at_zero() {
+    let (env, _admin, contract_id) = setup();
+    env.mock_all_auths();
+
+    let client = LiquidityIdentityClient::new(&env, &contract_id);
+    assert_eq!(client.get_total_wallets(), 0);
+}
+
+#[test]
+fn test_score_count_increments_on_each_set() {
+    let (env, admin, contract_id) = setup();
+    env.mock_all_auths();
+
+    let client = LiquidityIdentityClient::new(&env, &contract_id);
+    let wallet = Address::generate(&env);
+
+    client.set_score(
+        &admin,
+        &wallet,
+        &50,
+        &RiskLevel::Medium,
+        &dummy_hash(&env, 0x01),
+    );
+    assert_eq!(client.get_score_count(), 1);
+
+    // Re-score the same wallet — count increments but total_wallets stays the same.
+    client.set_score(
+        &admin,
+        &wallet,
+        &80,
+        &RiskLevel::Low,
+        &dummy_hash(&env, 0x02),
+    );
+    assert_eq!(client.get_score_count(), 2);
+}
+
+#[test]
+fn test_total_wallets_counts_unique_wallets() {
+    let (env, admin, contract_id) = setup();
+    env.mock_all_auths();
+
+    let client = LiquidityIdentityClient::new(&env, &contract_id);
+
+    let wallet1 = Address::generate(&env);
+    let wallet2 = Address::generate(&env);
+
+    client.set_score(
+        &admin,
+        &wallet1,
+        &70,
+        &RiskLevel::Low,
+        &dummy_hash(&env, 0x10),
+    );
+    assert_eq!(client.get_total_wallets(), 1);
+
+    client.set_score(
+        &admin,
+        &wallet2,
+        &40,
+        &RiskLevel::High,
+        &dummy_hash(&env, 0x20),
+    );
+    assert_eq!(client.get_total_wallets(), 2);
+
+    // Re-score wallet1 — total_wallets should still be 2.
+    client.set_score(
+        &admin,
+        &wallet1,
+        &90,
+        &RiskLevel::Low,
+        &dummy_hash(&env, 0x11),
+    );
+    assert_eq!(client.get_total_wallets(), 2);
+    assert_eq!(client.get_score_count(), 3);
+}

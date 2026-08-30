@@ -10,6 +10,9 @@ pub enum DataKey {
     LastUpdated(Address),
     RiskLevel(Address),
     ScoreInputHash(Address),
+    ScoreCount,
+    TotalWallets,
+    WalletScored(Address),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -120,6 +123,36 @@ impl LiquidityIdentity {
             (Symbol::new(&env, "score_set"), wallet.clone()),
             (score, risk, timestamp, score_input_hash.clone()),
         );
+
+        // Increment total score updates counter.
+        let count: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::ScoreCount)
+            .unwrap_or(0);
+        env.storage()
+            .instance()
+            .set(&DataKey::ScoreCount, &(count + 1));
+
+        // Track unique wallets — only increment total_wallets on first score.
+        let already_scored: bool = env
+            .storage()
+            .instance()
+            .get(&DataKey::WalletScored(wallet.clone()))
+            .unwrap_or(false);
+        if !already_scored {
+            env.storage()
+                .instance()
+                .set(&DataKey::WalletScored(wallet.clone()), &true);
+            let total: u32 = env
+                .storage()
+                .instance()
+                .get(&DataKey::TotalWallets)
+                .unwrap_or(0);
+            env.storage()
+                .instance()
+                .set(&DataKey::TotalWallets, &(total + 1));
+        }
     }
 
     pub fn get_score(env: Env, wallet: Address) -> u32 {
@@ -208,6 +241,22 @@ impl LiquidityIdentity {
             .instance()
             .get(&DataKey::Network)
             .unwrap_or_else(|| panic!("Network not set"))
+    }
+
+    /// Total number of score updates (including re-scoring the same wallet).
+    pub fn get_score_count(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::ScoreCount)
+            .unwrap_or(0)
+    }
+
+    /// Number of unique wallets that have been scored at least once.
+    pub fn get_total_wallets(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::TotalWallets)
+            .unwrap_or(0)
     }
 
     pub fn transfer_admin(env: Env, admin: Address, new_admin: Address) {
