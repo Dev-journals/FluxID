@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Search, Download, Plus } from "lucide-react";
 import ProtocolMetrics from "../../components/ProtocolMetrics";
 import RiskHeatmap from "../../components/RiskHeatmap";
@@ -10,10 +10,12 @@ import {
   fetchProtocolCohorts,
   fetchProtocolHealth,
   fetchProtocolSegments,
+  pingBackendHealth,
   resetProtocolHistory,
   type AddWalletsResult,
   type ProtocolCohort,
   type ProtocolNetwork,
+  type ProtocolRequestOptions,
   type SegmentActivity,
   type SegmentResult,
 } from "../../../lib/protocolApi";
@@ -46,16 +48,27 @@ export default function ProtocolDashboard() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [wakingServer, setWakingServer] = useState(false);
+
+  const onRetry = useCallback(() => setWakingServer(true), []);
+  const requestOptions: ProtocolRequestOptions = { onRetry };
 
   useEffect(() => {
     let active = true;
-    fetchProtocolCohorts().then((res) => {
-      if (active) setCohorts(res?.cohorts ?? []);
-    });
+    setWakingServer(false);
+    (async () => {
+      await pingBackendHealth(requestOptions);
+      if (!active) return;
+      const res = await fetchProtocolCohorts(undefined, requestOptions);
+      if (!active) return;
+      setCohorts(res?.cohorts ?? []);
+      setWakingServer(false);
+    })();
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey, onRetry]);
 
   const cohortsLoading = cohorts === null;
   const cohortMax = cohorts && cohorts.length > 0
@@ -65,16 +78,21 @@ export default function ProtocolDashboard() {
   const runSegmentQuery = async (e: React.FormEvent) => {
     e.preventDefault();
     setSegmentLoading(true);
-    const result = await fetchProtocolSegments({
-      minScore: minScore === "" ? undefined : Number(minScore),
-      maxScore: maxScore === "" ? undefined : Number(maxScore),
-      risk: risk === "" ? undefined : risk,
-      activity: activity === "" ? undefined : activity,
-      consistent: consistent ? true : undefined,
-      limit: 50,
-    });
+    const result = await fetchProtocolSegments(
+      {
+        minScore: minScore === "" ? undefined : Number(minScore),
+        maxScore: maxScore === "" ? undefined : Number(maxScore),
+        risk: risk === "" ? undefined : risk,
+        activity: activity === "" ? undefined : activity,
+        consistent: consistent ? true : undefined,
+        limit: 50,
+      },
+      undefined,
+      requestOptions
+    );
     setSegmentResult(result);
     setSegmentLoading(false);
+    setWakingServer(false);
   };
 
   const runUpload = async (e: React.FormEvent) => {
@@ -86,9 +104,10 @@ export default function ProtocolDashboard() {
     if (wallets.length === 0) return;
     setUploadLoading(true);
     setUploadResult(null);
-    const result = await addProtocolWallets(wallets, uploadNetwork);
+    const result = await addProtocolWallets(wallets, uploadNetwork, requestOptions);
     setUploadResult(result);
     setUploadLoading(false);
+    setWakingServer(false);
     if (result && result.scored > 0) {
       setRefreshKey((k) => k + 1);
     }
@@ -97,7 +116,8 @@ export default function ProtocolDashboard() {
   const runReset = async () => {
     if (!confirm("Reset protocol intelligence data? This clears all uploaded wallets.")) return;
     setResetting(true);
-    await resetProtocolHistory();
+    await resetProtocolHistory(undefined, requestOptions);
+    setWakingServer(false);
     setUploadResult(null);
     setRefreshKey((k) => k + 1);
     setResetting(false);
@@ -107,9 +127,10 @@ export default function ProtocolDashboard() {
     setExporting(true);
     try {
       const [health, segments] = await Promise.all([
-        fetchProtocolHealth(),
-        fetchProtocolSegments({ limit: 500 }),
+        fetchProtocolHealth(undefined, requestOptions),
+        fetchProtocolSegments({ limit: 500 }, undefined, requestOptions),
       ]);
+      setWakingServer(false);
       if (!health || !segments) {
         alert("Could not fetch protocol data — make sure the backend is reachable.");
         return;
@@ -207,6 +228,25 @@ export default function ProtocolDashboard() {
         </div>
       </div>
 
+      {wakingServer && (
+        <div
+          role="status"
+          className="mb-6 rounded-2xl px-4 py-3 text-sm font-semibold"
+          style={{
+            background: "#eab30815",
+            border: "1px solid #eab30840",
+            color: "var(--foreground)",
+          }}
+        >
+          Waking up server, please wait...
+          <span
+            style={{ color: "var(--foreground-muted)", fontWeight: 500, marginLeft: 8 }}
+          >
+            The backend is starting after idle. Your request will retry automatically — nothing is lost.
+          </span>
+        </div>
+      )}
+
       {uploadOpen && (
         <form
           onSubmit={runUpload}
@@ -275,7 +315,11 @@ export default function ProtocolDashboard() {
                 opacity: uploadLoading || walletInput.trim() === "" ? 0.5 : 1,
               }}
             >
-              {uploadLoading ? "Scoring…" : "Score & Add"}
+              {uploadLoading
+                ? wakingServer
+                  ? "Waking up server, please wait..."
+                  : "Scoring…"
+                : "Score & Add"}
             </button>
             {uploadResult && (
               <span style={{ color: "var(--foreground-muted)", fontSize: 12 }}>
