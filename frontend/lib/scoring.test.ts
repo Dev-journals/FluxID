@@ -2,12 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   calculateLiquidityScore,
   horizonAnalyzeError,
+  isAccountNotFoundMessage,
   isHorizonNotFound,
   resolveAnalyzeAddress,
   formatTransactionCount,
   computeAssetsBreakdown,
   holdingsFromBalances,
   assetKindsLabel,
+  ACCOUNT_NOT_FOUND_GUIDANCE,
   type LiquidityMetrics,
 } from "./scoring";
 
@@ -81,7 +83,7 @@ describe("horizonAnalyzeError", () => {
   it("maps a Horizon 404 to an account-not-found message on mainnet", () => {
     expect(isHorizonNotFound({ name: "NotFoundError", response: { status: 404 } })).toBe(true);
     expect(horizonAnalyzeError({ name: "NotFoundError", response: { status: 404 } }, "mainnet")).toBe(
-      "Account not found on mainnet. Check the address or switch network."
+      "Account not found on mainnet. This wallet may be on a different network. Try switching between Mainnet/Testnet. Make sure the account is activated (has at least 1 XLM). Check the address for typos."
     );
   });
 
@@ -89,6 +91,12 @@ describe("horizonAnalyzeError", () => {
     expect(horizonAnalyzeError(new Error("Network request failed"), "mainnet")).toBe(
       "Wallet analysis failed on mainnet. Network request failed"
     );
+  });
+
+  it("flags any account-not-found copy so the UI can show next-step guidance", () => {
+    expect(isAccountNotFoundMessage("Account not found on this network")).toBe(true);
+    expect(isAccountNotFoundMessage("Wallet analysis failed on mainnet.")).toBe(false);
+    expect(ACCOUNT_NOT_FOUND_GUIDANCE).toHaveLength(3);
   });
 });
 

@@ -19,6 +19,8 @@ import {
   type SegmentActivity,
   type SegmentResult,
 } from "../../../lib/protocolApi";
+import { isAccountNotFoundMessage } from "../../../lib/scoring";
+import AccountNotFoundHelp from "../../components/AccountNotFoundHelp";
 
 type RiskFilter = "" | "Low" | "Medium" | "High";
 type ActivityFilter = "" | SegmentActivity;
@@ -264,6 +266,7 @@ export default function ProtocolDashboard() {
               Add Wallets to Protocol Intelligence
             </h3>
             <div
+              id="protocol-network-switcher"
               className="flex items-center p-0.5 rounded-lg card overflow-hidden"
             >
               {(["mainnet", "testnet"] as ProtocolNetwork[]).map((n) => (
@@ -369,6 +372,15 @@ export default function ProtocolDashboard() {
                   </div>
                 ))}
               </div>
+              {uploadResult.failed.some((f) => isAccountNotFoundMessage(f.reason)) && (
+                <AccountNotFoundHelp
+                  network={uploadNetwork}
+                  switcherHref="#protocol-network-switcher"
+                  onSwitchNetwork={() =>
+                    setUploadNetwork(uploadNetwork === "mainnet" ? "testnet" : "mainnet")
+                  }
+                />
+              )}
             </div>
           )}
         </form>
