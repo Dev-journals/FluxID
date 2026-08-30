@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownLeft, ArrowUpRight, Activity, Filter, ArrowLeftRight, ExternalLink, Info } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Activity, Filter, ArrowLeftRight, ExternalLink, Info, ChevronDown } from "lucide-react";
 import { useAnalysis } from "../context/AnalysisContext";
 import { truncateAddress } from "../../context/FreighterContext";
 import type { TransactionData } from "../../../lib/scoring";
@@ -310,6 +310,7 @@ export default function TransactionsPage() {
                 value={stats.displayTotal}
                 color="var(--foreground)"
                 subtext={filter === "all" ? "All real transfers" : `Filtered: ${filter}`}
+                hint="Total count reflects value transfers (payments, swaps). Non-monetary operations like trustline setups are listed with amount 0."
                 isActive={true}
                 isFiltered={filter !== "all"}
               />
@@ -555,6 +556,7 @@ function StatCard({
   value,
   color,
   subtext,
+  hint,
   isActive = true,
   isFiltered = false,
 }: {
@@ -562,6 +564,7 @@ function StatCard({
   value: number;
   color: string;
   subtext?: string;
+  hint?: string;
   isActive?: boolean;
   isFiltered?: boolean;
 }) {
@@ -576,9 +579,12 @@ function StatCard({
       className="rounded-xl p-4 transition-all"
     >
       <div className="flex items-center justify-between gap-1 mb-1">
-        <p style={{ color: "var(--foreground-muted)", fontSize: 11, fontWeight: 600 }} className="uppercase">
-          {label}
-        </p>
+        <div className="flex items-center gap-1">
+          <p style={{ color: "var(--foreground-muted)", fontSize: 11, fontWeight: 600 }} className="uppercase">
+            {label}
+          </p>
+          {hint && <StatHint text={hint} />}
+        </div>
         {isFiltered && isActive && (
           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase">
             Active
