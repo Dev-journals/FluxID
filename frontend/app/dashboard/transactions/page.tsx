@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownLeft, ArrowUpRight, Activity, Filter, ArrowLeftRight } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Activity, Filter, ArrowLeftRight, ChevronDown } from "lucide-react";
 import { useAnalysis } from "../context/AnalysisContext";
 import { truncateAddress } from "../../context/FreighterContext";
 import type { TransactionData } from "../../../lib/scoring";
@@ -27,6 +27,49 @@ function assetLabel(asset: string): string {
   const [code, issuer] = asset.split(":");
   if (code === "USDC") return "USDC";
   return issuer ? `${code}` : code;
+}
+
+function StatHint({ text }: { text: string }) {
+  const [pinned, setPinned] = useState(false);
+
+  return (
+    <span className="relative inline-flex group/hint">
+      <button
+        onClick={() => setPinned((p) => !p)}
+        aria-label="More info"
+        className="p-0.5 rounded transition-colors hover:bg-[var(--surface)]"
+        style={{ color: "var(--foreground-dim)" }}
+      >
+        <ChevronDown size={12} />
+      </button>
+      {pinned && (
+        <span
+          className="absolute top-full left-0 mt-1 z-50 w-56 p-2.5 rounded-lg text-left shadow-lg"
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            color: "var(--foreground-muted)",
+            fontSize: 11,
+            lineHeight: 1.5,
+          }}
+        >
+          {text}
+        </span>
+      )}
+      <span
+        className="absolute top-full left-0 mt-1 z-50 w-56 p-2.5 rounded-lg text-left shadow-lg pointer-events-none opacity-0 group-hover/hint:opacity-100 transition-opacity"
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          color: "var(--foreground-muted)",
+          fontSize: 11,
+          lineHeight: 1.5,
+        }}
+      >
+        {text}
+      </span>
+    </span>
+  );
 }
 
 export default function TransactionsPage() {
@@ -80,7 +123,7 @@ export default function TransactionsPage() {
       {analysis && !isAnalyzing && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <StatCard label="Total" value={stats.total} color="var(--foreground)" />
+            <StatCard label="Total" value={stats.total} color="var(--foreground)" hint="Showing payment transfers only. The Analytics page counts all on-chain operations (including account setup, data writes, etc.) — the totals may differ." />
             <StatCard label="Inflows" value={stats.inCount} color="#22c55e" />
             <StatCard label="Outflows" value={stats.outCount} color="#ef4444" />
             <StatCard label="Swaps" value={stats.swapCount} color="#8FA828" />
@@ -263,15 +306,18 @@ export default function TransactionsPage() {
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+function StatCard({ label, value, color, hint }: { label: string; value: number; color: string; hint?: string }) {
   return (
     <div
       style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       className="rounded-xl p-4"
     >
-      <p style={{ color: "var(--foreground-muted)", fontSize: 11, fontWeight: 600 }} className="uppercase mb-1">
-        {label}
-      </p>
+      <div className="flex items-center gap-1.5 mb-1">
+        <p style={{ color: "var(--foreground-muted)", fontSize: 11, fontWeight: 600 }} className="uppercase">
+          {label}
+        </p>
+        {hint && <StatHint text={hint} />}
+      </div>
       <p style={{ color, fontSize: 24, fontWeight: 900 }}>{value}</p>
     </div>
   );
