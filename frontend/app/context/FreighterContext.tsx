@@ -12,8 +12,8 @@ import { useToast } from "../components/Toast";
 import { logEvent } from "../../lib/metricsApi";
 import { readStoredNetwork, subscribeStoredNetwork } from "../../lib/dashboardStorage";
 import type { StellarNetwork } from "../../lib/scoring";
-import { isConnected, requestAccess, getAddress } from "@stellar/freighter-api";
-import { currentFreighterHost, isFreighterInjected, FREIGHTER_DOWNLOAD_URL } from "../../lib/freighterDetect";
+import { requestAccess, getAddress } from "@stellar/freighter-api";
+import { currentFreighterHost, isFreighterInjected, isFreighterMobile, FREIGHTER_DOWNLOAD_URL } from "../../lib/freighterDetect";
 
 import {
   StellarWalletsKit,
@@ -105,41 +105,32 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
 
   const connect = useCallback(async () => {
     try {
+      initKit();
       setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-      let present = isFreighterInjected(currentFreighterHost());
-      if (!present) {
-        try {
-          const status = await isConnected();
-          present = !status.error && status.isConnected;
-        } catch {
-          present = false;
-        }
-      }
+      let address: string;
 
-      if (!present) {
-        const errMsg = "Freighter is not installed. Download Freighter, then try connecting again.";
-        setState((prev) => ({
-          ...prev,
-          isInstalled: false,
-          isLoading: false,
-          error: errMsg,
-        }));
-        showToast(errMsg, "error");
-        return;
-      }
-
-      const access = await requestAccess();
-      if (access.error) {
-        throw new Error(typeof access.error === "string" ? access.error : "Freighter access was denied.");
-      }
-      let address = access.address;
-      if (!address) {
-        const got = await getAddress();
-        if (got.error || !got.address) {
-          throw new Error("Freighter did not return an address.");
+      // The kit's Freighter module reports itself unavailable on the mobile
+      // wrapper, so the modal would send the user to the download page.
+      // Everywhere else, open the picker (Freighter / Albedo / xBull).
+      if (isFreighterMobile(currentFreighterHost())) {
+        const access = await requestAccess();
+        if (access.error) {
+          throw new Error(
+            typeof access.error === "string" ? access.error : "Freighter access was denied."
+          );
         }
-        address = got.address;
+        address = access.address;
+        if (!address) {
+          const got = await getAddress();
+          if (got.error || !got.address) {
+            throw new Error("Freighter did not return an address.");
+          }
+          address = got.address;
+        }
+      } else {
+        const result = await StellarWalletsKit.authModal();
+        address = result.address;
       }
 
       setState({
@@ -155,7 +146,7 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
       console.error("Wallet selection error:", err);
       let errMsg = err instanceof Error ? err.message : "Failed to connect to wallet.";
       
-      if (errMsg.toLowerCase().includes("reject") || errMsg.toLowerCase().includes("decline") || errMsg.toLowerCase().includes("cancel")) {
+      if (errMsg.toLowerCase().includes("reject") || errMsg.toLowerCase().includes("decline") || errMsg.toLowerCase().includes("cancel") || errMsg.toLowerCase().includes("closed the modal")) {
         errMsg = "Wallet connection rejected by user.";
       } else if (errMsg.toLowerCase().includes("not found") || errMsg.toLowerCase().includes("not installed")) {
         errMsg = `Freighter is not installed. Download it at ${FREIGHTER_DOWNLOAD_URL}`;
