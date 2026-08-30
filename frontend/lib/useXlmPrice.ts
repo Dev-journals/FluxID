@@ -35,8 +35,13 @@ async function fetchXlmPriceOnce(): Promise<number | null> {
 }
 
 /**
- * Live XLM/USD from CoinGecko. Backend `usd.xlmPriceUsd` is a fallback only
- * when the market fetch fails — a stale backend quote must not win.
+ * Returns the XLM/USD price to use in a component.
+ *
+ * Priority:
+ *   1. `usd.xlmPriceUsd` — already resolved by the backend, use it directly
+ *      so we don't spend CoinGecko rate-limit on every mount.
+ *   2. A shared CoinGecko fetch (5 min cache, in-flight dedup) when the
+ *      backend did not provide a price.
  */
 export function useXlmPrice(usd?: UsdValuation): number | null {
   const backendPrice =
@@ -44,8 +49,9 @@ export function useXlmPrice(usd?: UsdValuation): number | null {
   const [frontendPrice, setFrontendPrice] = useState<number | null>(cached?.value ?? null);
 
   useEffect(() => {
+    if (backendPrice !== null) return;
     fetchXlmPriceOnce().then(setFrontendPrice);
-  }, []);
+  }, [backendPrice]);
 
-  return frontendPrice ?? backendPrice;
+  return backendPrice ?? frontendPrice;
 }

@@ -39,7 +39,8 @@ function directionCaption(dir: { XLM: number; USDC: number; other: unknown[] }):
 export default function FlowSummary({ data, assets, usd, holdings, isLoading, className = "" }: FlowSummaryProps) {
   const xlmPrice = useXlmPrice(usd);
 
-  if (isLoading) {    return (
+  if (isLoading) {
+    return (
       <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 ${className}`}>
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="animate-pulse h-28 bg-var(--surface) rounded-xl" />

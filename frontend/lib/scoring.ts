@@ -291,7 +291,10 @@ export async function fetchWalletPayments(
     const records = response.records as unknown as PaymentRecord[];
     return records.filter((p) => !(p.from === address && p.to === address));
   } catch (error) {
-    throw new Error(horizonAnalyzeError(error, network));
+    if (isHorizonNotFound(error)) {
+      throw new Error(horizonAnalyzeError(error, network));
+    }
+    return [];
   }
 }
 
@@ -316,7 +319,10 @@ export async function fetchWalletPaymentsWithSwaps(
 
     return { payments, swapPayments };
   } catch (error) {
-    throw new Error(horizonAnalyzeError(error, network));
+    if (isHorizonNotFound(error)) {
+      throw new Error(horizonAnalyzeError(error, network));
+    }
+    return { payments: [], swapPayments: [] };
   }
 }
 
@@ -683,14 +689,20 @@ export async function analyzeWallet(
   const fromBackend = await fetchFromBackend(address, network);
   if (fromBackend) return fromBackend;
 
-  const { payments, swapPayments } = await fetchWalletPaymentsWithSwaps(address, network);
-  const [horizonTxCount, holdings] = await Promise.all([
-    fetchHorizonTransactionCount(address, network).catch(
-      () => payments.length + swapPayments.length
-    ),
-    fetchAccountHoldings(address, network),
-  ]);
-  return localAnalyze(address, payments, swapPayments, horizonTxCount, holdings);
+  try {
+    const { payments, swapPayments } = await fetchWalletPaymentsWithSwaps(address, network);
+    const [horizonTxCount, holdings] = await Promise.all([
+      fetchHorizonTransactionCount(address, network).catch(
+        () => payments.length + swapPayments.length
+      ),
+      fetchAccountHoldings(address, network),
+    ]);
+    return localAnalyze(address, payments, swapPayments, horizonTxCount, holdings);
+  } catch (error) {
+    throw new Error(
+      error instanceof Error ? error.message : horizonAnalyzeError(error, network)
+    );
+  }
 }
 
 export function getSuggestions(score: LiquidityScore, metrics: LiquidityMetrics): string[] {
