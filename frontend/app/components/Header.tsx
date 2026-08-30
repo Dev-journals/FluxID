@@ -9,6 +9,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useState, useRef, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useToast } from "./Toast";
+import { useStoredNetwork } from "../../lib/dashboardStorage";
 
 export default function Header() {
   const pathname = usePathname();
@@ -32,7 +33,7 @@ export default function Header() {
 
   // Dropdown state
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [network, setNetwork] = useState<"testnet" | "mainnet">("testnet");
+  const [network, setNetwork] = useStoredNetwork();
   const [balances, setBalances] = useState<{ xlm: string; usdc: string }>({
     xlm: "...",
     usdc: "...",

@@ -10,6 +10,8 @@ import {
 } from "react";
 import { useToast } from "../components/Toast";
 import { logEvent } from "../../lib/metricsApi";
+import { readStoredNetwork, subscribeStoredNetwork } from "../../lib/dashboardStorage";
+import type { StellarNetwork } from "../../lib/scoring";
 
 import {
   StellarWalletsKit,
@@ -20,13 +22,18 @@ import { FreighterModule } from "@creit.tech/stellar-wallets-kit/modules/freight
 import { AlbedoModule } from "@creit.tech/stellar-wallets-kit/modules/albedo";
 import { xBullModule } from "@creit.tech/stellar-wallets-kit/modules/xbull";
 
+function kitPassphrase(network: StellarNetwork) {
+  return network === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
+}
+
 // Initialize kit once outside component so it persists
 let isKitInitialized = false;
 function initKit() {
   if (typeof window === "undefined") return;
+  const passphrase = kitPassphrase(readStoredNetwork());
   if (!isKitInitialized) {
     StellarWalletsKit.init({
-      network: Networks.TESTNET,
+      network: passphrase,
       selectedWalletId: "freighter",
       modules: [
         new FreighterModule(),
@@ -35,6 +42,8 @@ function initKit() {
       ],
     });
     isKitInitialized = true;
+  } else {
+    StellarWalletsKit.setNetwork(passphrase);
   }
 }
 
@@ -68,6 +77,9 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     initKit();
+    const unsub = subscribeStoredNetwork(() => {
+      StellarWalletsKit.setNetwork(kitPassphrase(readStoredNetwork()));
+    });
     const restoreSession = async () => {
       try {
         const { address } = await StellarWalletsKit.getAddress();
@@ -83,6 +95,7 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
       }
     };
     restoreSession();
+    return unsub;
   }, []);
 
   const connect = useCallback(async () => {
@@ -101,7 +114,7 @@ export function FreighterProvider({ children }: { children: ReactNode }) {
       });
       showToast(`Connected to wallet`, "success");
       // Best-effort usage log — proof of a real wallet interaction. Never blocks connect.
-      void logEvent("wallet_connect", address, "testnet");
+      void logEvent("wallet_connect", address, readStoredNetwork());
     } catch (err) {
       console.error("Wallet selection error:", err);
       let errMsg = err instanceof Error ? err.message : "Failed to connect to wallet.";
