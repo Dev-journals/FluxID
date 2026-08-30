@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AssetsBreakdown, FlowSummary as FlowSummaryType, UsdValuation } from "../../lib/scoring";
+import { AssetsBreakdown, FlowSummary as FlowSummaryType, UsdValuation, WalletHolding, formatTransactionCount, assetKindsLabel } from "../../lib/scoring";
 import { ArrowDownLeft, ArrowUpRight, Activity, Coins, ArrowLeftRight } from "lucide-react";
 import { useXlmPrice } from "../../lib/useXlmPrice";
 
@@ -9,6 +9,7 @@ interface FlowSummaryProps {
   data: FlowSummaryType | null;
   assets?: AssetsBreakdown;
   usd?: UsdValuation;
+  holdings?: WalletHolding[];
   isLoading?: boolean;
   className?: string;
 }
@@ -35,10 +36,11 @@ function directionCaption(dir: { XLM: number; USDC: number; other: unknown[] }):
   return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
-export default function FlowSummary({ data, assets, usd, isLoading, className = "" }: FlowSummaryProps) {
+export default function FlowSummary({ data, assets, usd, holdings, isLoading, className = "" }: FlowSummaryProps) {
   const xlmPrice = useXlmPrice(usd);
 
-  if (isLoading) {    return (
+  if (isLoading) {
+    return (
       <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 ${className}`}>
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="animate-pulse h-28 bg-var(--surface) rounded-xl" />
@@ -102,7 +104,7 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
     },
     {
       label: "Transactions",
-      primary: data.transactionCount.toString(),
+      primary: formatTransactionCount(data.transactionCount),
       caption: null,
       icon: Activity,
       color: "var(--primary)",
@@ -110,7 +112,7 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
     },
     {
       label: "Assets",
-      primary: assets ? assetCountLabel(assets) : "—",
+      primary: assetKindsLabel(assets, holdings),
       caption: xlmPrice
         ? `XLM = ${formatUsd(xlmPrice)}`
         : "XLM price unavailable",
@@ -190,16 +192,4 @@ export default function FlowSummary({ data, assets, usd, isLoading, className = 
       )}
     </div>
   );
-}
-
-function assetCountLabel(assets: AssetsBreakdown): string {
-  const kinds = new Set<string>();
-  for (const dir of [assets.inflow, assets.outflow]) {
-    if (dir.XLM > 0) kinds.add("XLM");
-    if (dir.USDC > 0) kinds.add("USDC");
-    for (const o of dir.other) kinds.add(o.code);
-  }
-  if (kinds.size === 0) return "None";
-  if (kinds.size <= 3) return Array.from(kinds).join(", ");
-  return `${kinds.size} assets`;
 }

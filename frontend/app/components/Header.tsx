@@ -9,6 +9,8 @@ import { useTheme } from "next-themes";
 import { useEffect, useState, useRef, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useToast } from "./Toast";
+import { useStoredNetwork } from "../../lib/dashboardStorage";
+import { FREIGHTER_DOWNLOAD_URL } from "../../lib/freighterDetect";
 
 export default function Header() {
   const pathname = usePathname();
@@ -16,6 +18,7 @@ export default function Header() {
     publicKey: address,
     isConnected,
     isLoading,
+    isInstalled,
     connect,
     disconnect,
   } = useFreighter();
@@ -32,7 +35,7 @@ export default function Header() {
 
   // Dropdown state
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [network, setNetwork] = useState<"testnet" | "mainnet">("testnet");
+  const [network, setNetwork] = useStoredNetwork();
   const [balances, setBalances] = useState<{ xlm: string; usdc: string }>({
     xlm: "...",
     usdc: "...",
@@ -349,14 +352,27 @@ export default function Header() {
                 )}
               </div>
             ) : (
-              <button
-                onClick={connect}
-                disabled={isLoading}
-                className="btn btn-outline text-sm py-1.5 flex items-center gap-2 disabled:opacity-60"
-              >
-                <Wallet size={14} />
-                {isLoading ? "..." : "Connect"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={connect}
+                  disabled={isLoading}
+                  className="btn btn-outline text-sm py-1.5 flex items-center gap-2 disabled:opacity-60"
+                >
+                  <Wallet size={14} />
+                  {isLoading ? "..." : "Connect"}
+                </button>
+                {!isInstalled && (
+                  <a
+                    href={FREIGHTER_DOWNLOAD_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hidden sm:inline text-xs underline"
+                    style={{ color: "var(--foreground-muted)" }}
+                  >
+                    Get Freighter
+                  </a>
+                )}
+              </div>
             )}
           </div>
         </div>
