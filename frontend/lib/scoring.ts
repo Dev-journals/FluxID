@@ -11,6 +11,45 @@ function horizonUrlFor(network: StellarNetwork): string {
   return HORIZON_URLS[network];
 }
 
+const STELLAR_ADDRESS_RE = /^G[A-Z2-7]{55}$/;
+
+export function isValidStellarAddress(addr: string): boolean {
+  return STELLAR_ADDRESS_RE.test(addr.trim());
+}
+
+/** Prefer a typed address; fall back to the connected Freighter key. */
+export function resolveAnalyzeAddress(
+  input: string,
+  connectedAddress: string | null | undefined
+): string | null {
+  const trimmed = input.trim();
+  if (isValidStellarAddress(trimmed)) return trimmed;
+  if (connectedAddress && isValidStellarAddress(connectedAddress)) {
+    return connectedAddress.trim();
+  }
+  return null;
+}
+
+export function isHorizonNotFound(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as {
+    name?: string;
+    status?: number;
+    response?: { status?: number; statusCode?: number };
+  };
+  const status = e.response?.status ?? e.response?.statusCode ?? e.status;
+  return e.name === "NotFoundError" || status === 404;
+}
+
+export function horizonAnalyzeError(error: unknown, network: StellarNetwork): string {
+  if (isHorizonNotFound(error)) {
+    return `Account not found on ${network}. Check the address or switch network.`;
+  }
+  const detail =
+    error instanceof Error && error.message ? error.message : "Please try again.";
+  return `Wallet analysis failed on ${network}. ${detail}`;
+}
+
 const AI_BACKEND_URL = process.env.NEXT_PUBLIC_AI_BACKEND_URL || "";
 
 export interface LiquidityMetrics {
@@ -146,10 +185,7 @@ export async function fetchWalletPayments(
     const records = response.records as unknown as PaymentRecord[];
     return records.filter((p) => !(p.from === address && p.to === address));
   } catch (error) {
-    // 404s are expected when a wallet exists on one network but not another —
-    // return empty instead of throwing, caller handles the empty-state UX.
-    console.warn("fetchWalletPayments failed for", address, network, error);
-    return [];
+    throw new Error(horizonAnalyzeError(error, network));
   }
 }
 
@@ -174,8 +210,7 @@ export async function fetchWalletPaymentsWithSwaps(
 
     return { payments, swapPayments };
   } catch (error) {
-    console.warn("fetchWalletPaymentsWithSwaps failed for", address, network, error);
-    return { payments: [], swapPayments: [] };
+    throw new Error(horizonAnalyzeError(error, network));
   }
 }
 
@@ -420,8 +455,16 @@ async function fetchFromBackend(
     const d = json.data;
     // Backend /score strips self-swaps from its metrics, so fetch both here and
     // layer swap data onto the backend numbers — otherwise the transactions tab
-    // and FlowSummary swap row show 0.
-    const { payments, swapPayments } = await fetchWalletPaymentsWithSwaps(address, network);
+    // and FlowSummary swap row show 0. Don't let a Horizon miss wipe the score.
+    let payments: PaymentRecord[] = [];
+    let swapPayments: PaymentRecord[] = [];
+    try {
+      const fetched = await fetchWalletPaymentsWithSwaps(address, network);
+      payments = fetched.payments;
+      swapPayments = fetched.swapPayments;
+    } catch {
+      // Keep the backend result; local analyzeWallet will still surface Horizon errors.
+    }
     const transactions = parsePayments(payments, address);
     const swapTransactions = buildSwapTransactions(swapPayments, address);
     const swapMetrics = calculateLiquidityMetrics([], address, swapPayments);

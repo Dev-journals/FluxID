@@ -20,7 +20,7 @@ interface AnalysisState {
 }
 
 interface AnalysisContextValue extends AnalysisState {
-  analyze: (address: string, network?: StellarNetwork) => Promise<void>;
+  analyze: (address: string, network?: StellarNetwork) => Promise<boolean>;
   setNetwork: (network: StellarNetwork) => void;
   clear: () => void;
 }
@@ -76,12 +76,14 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       }
       // Best-effort usage log — a real wallet was scored. Never blocks the UI.
       void logEvent("score_run", address, network);
+      return true;
     } catch (err) {
       setState((prev) => ({
         ...prev,
         isAnalyzing: false,
         error: err instanceof Error ? err.message : "Analysis failed",
       }));
+      return false;
     }
   }, [state.network]);
 

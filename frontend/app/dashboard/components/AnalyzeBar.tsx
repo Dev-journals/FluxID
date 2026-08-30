@@ -7,12 +7,11 @@ import { useFreighter, truncateAddress } from "../../context/FreighterContext";
 import { useToast } from "../../components/Toast";
 import { useAnalysis } from "../context/AnalysisContext";
 import { AnalyzingButton } from "../../components/Skeletons";
-import type { StellarNetwork } from "../../../lib/scoring";
-
-const STELLAR_ADDRESS_RE = /^G[A-Z2-7]{55}$/;
-function isValidStellarAddress(addr: string): boolean {
-  return STELLAR_ADDRESS_RE.test(addr.trim());
-}
+import {
+  isValidStellarAddress,
+  resolveAnalyzeAddress,
+  type StellarNetwork,
+} from "../../../lib/scoring";
 
 export default function AnalyzeBar() {
   const {
@@ -39,15 +38,24 @@ export default function AnalyzeBar() {
     }
   }, [analyzedAddress]);
 
+  // After Freighter connects, drop the public key into an empty field so
+  // Analyze is enabled without a second "use my wallet" click.
+  useEffect(() => {
+    if (!walletAddress) return;
+    setInput((current) => (current.trim() ? current : walletAddress));
+  }, [walletAddress]);
+
   const trimmed = input.trim();
   const hasInput = trimmed.length > 0;
   const isValid = isValidStellarAddress(trimmed);
+  const addressToAnalyze = resolveAnalyzeAddress(input, isConnected ? walletAddress : null);
+  const canAnalyze = Boolean(addressToAnalyze);
   const showInvalidWarning = hasInput && !isValid;
 
   const onAnalyze = async () => {
-    if (!isValid) return;
-    await analyze(trimmed, network);
-    showToast(`Analyzed on ${network}`, "success");
+    if (!addressToAnalyze) return;
+    const ok = await analyze(addressToAnalyze, network);
+    if (ok) showToast(`Analyzed on ${network}`, "success");
   };
 
   const onUseMyWallet = async () => {
@@ -71,7 +79,7 @@ export default function AnalyzeBar() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && isValid && !isAnalyzing) onAnalyze();
+            if (e.key === "Enter" && canAnalyze && !isAnalyzing) onAnalyze();
           }}
           placeholder="Enter any Stellar wallet address (G...)"
           spellCheck={false}
@@ -106,7 +114,7 @@ export default function AnalyzeBar() {
           </div>
           <button
             onClick={onAnalyze}
-            disabled={isAnalyzing || !isValid}
+            disabled={isAnalyzing || !canAnalyze}
             className="btn btn-primary flex flex-1 sm:flex-none min-w-0 items-center justify-center gap-1 sm:gap-2 px-3 sm:px-5 text-xs sm:text-sm"
           >
             {isAnalyzing ? (
