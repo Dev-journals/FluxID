@@ -13,6 +13,8 @@ import {
   pingBackendHealth,
   resetProtocolHistory,
   formatCacheAge,
+  resolveSegmentEmptyKind,
+  segmentEmptyMessage,
   type AddWalletsResult,
   type ProtocolCohort,
   type ProtocolNetwork,
@@ -44,6 +46,9 @@ export default function ProtocolDashboard() {
   const [consistent, setConsistent] = useState(false);
   const [segmentResult, setSegmentResult] = useState<SegmentResult | null>(null);
   const [segmentLoading, setSegmentLoading] = useState(false);
+  const [segmentFetchFailed, setSegmentFetchFailed] = useState(false);
+  const [totalScored, setTotalScored] = useState(0);
+  const [cohortsError, setCohortsError] = useState(false);
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [protocolNetwork, setProtocolNetwork] = useStoredNetwork();
@@ -63,8 +68,13 @@ export default function ProtocolDashboard() {
     (async () => {
       await pingBackendHealth(requestOptions);
       if (!active) return;
-      const res = await fetchProtocolCohorts(protocolNetwork, requestOptions);
+      const [health, res] = await Promise.all([
+        fetchProtocolHealth(protocolNetwork, requestOptions),
+        fetchProtocolCohorts(protocolNetwork, requestOptions),
+      ]);
       if (!active) return;
+      setTotalScored(health?.totalWallets ?? 0);
+      setCohortsError(res == null);
       setCohorts(res?.cohorts ?? []);
       setWakingServer(false);
     })();
@@ -78,23 +88,41 @@ export default function ProtocolDashboard() {
   const cohortMax = cohorts && cohorts.length > 0
     ? Math.max(1, ...cohorts.map((c) => c.count))
     : 1;
+  const noWalletsInCohorts =
+    !cohortsLoading &&
+    !cohortsError &&
+    ((cohorts?.length ?? 0) === 0 || (cohorts?.every((c) => c.count === 0) ?? true));
 
   const runSegmentQuery = async (e: React.FormEvent) => {
     e.preventDefault();
     setSegmentLoading(true);
-    const result = await fetchProtocolSegments(
-      {
-        minScore: minScore === "" ? undefined : Number(minScore),
-        maxScore: maxScore === "" ? undefined : Number(maxScore),
-        risk: risk === "" ? undefined : risk,
-        activity: activity === "" ? undefined : activity,
-        consistent: consistent ? true : undefined,
-        limit: 50,
-      },
-      protocolNetwork,
-      requestOptions
+    setSegmentFetchFailed(false);
+    const [result, health] = await Promise.all([
+      fetchProtocolSegments(
+        {
+          minScore: minScore === "" ? undefined : Number(minScore),
+          maxScore: maxScore === "" ? undefined : Number(maxScore),
+          risk: risk === "" ? undefined : risk,
+          activity: activity === "" ? undefined : activity,
+          consistent: consistent ? true : undefined,
+          limit: 50,
+        },
+        protocolNetwork,
+        requestOptions
+      ),
+      fetchProtocolHealth(protocolNetwork, requestOptions),
+    ]);
+    if (health) setTotalScored(health.totalWallets);
+    setSegmentFetchFailed(result == null);
+    setSegmentResult(
+      result ?? {
+        network: protocolNetwork,
+        criteria: {},
+        total: 0,
+        returned: 0,
+        wallets: [],
+      }
     );
-    setSegmentResult(result);
     setSegmentLoading(false);
     setWakingServer(false);
   };
@@ -506,15 +534,23 @@ export default function ProtocolDashboard() {
                     Loading segments…
                   </p>
                 )}
-                {!cohortsLoading && (cohorts?.length ?? 0) === 0 && (
+                {!cohortsLoading && cohortsError && (
                   <p
                     style={{ color: "var(--foreground-dim)", fontSize: 12 }}
                     className="py-2"
                   >
-                    No cohort data yet.
+                    {segmentEmptyMessage("pipeline-error")}
                   </p>
                 )}
-                {!cohortsLoading && cohorts && cohorts.map((s) => (
+                {noWalletsInCohorts && (
+                  <p
+                    style={{ color: "var(--foreground-dim)", fontSize: 12 }}
+                    className="py-2"
+                  >
+                    {segmentEmptyMessage("none-scored")}
+                  </p>
+                )}
+                {!cohortsLoading && !cohortsError && !noWalletsInCohorts && cohorts && cohorts.map((s) => (
                   <button
                     key={s.id}
                     title={s.description}
@@ -690,8 +726,11 @@ export default function ProtocolDashboard() {
                         style={{ color: "var(--foreground-muted)", fontSize: 11, fontWeight: 700 }}
                         className="uppercase mb-2"
                       >
-                        {segmentResult.total} match{segmentResult.total === 1 ? "" : "es"}
-                        {segmentResult.total > segmentResult.returned
+                        {segmentFetchFailed
+                          ? "Query failed"
+                          : `${segmentResult.total} match${segmentResult.total === 1 ? "" : "es"}`}
+                        {!segmentFetchFailed &&
+                        segmentResult.total > segmentResult.returned
                           ? ` · showing ${segmentResult.returned}`
                           : ""}
                       </p>
@@ -700,7 +739,12 @@ export default function ProtocolDashboard() {
                           style={{ color: "var(--foreground-dim)", fontSize: 12 }}
                           className="py-2"
                         >
-                          No wallets match these criteria yet.
+                          {segmentEmptyMessage(
+                            resolveSegmentEmptyKind({
+                              fetchFailed: segmentFetchFailed,
+                              totalScored,
+                            })
+                          )}
                         </p>
                       ) : (
                         <div className="space-y-1 max-h-60 overflow-y-auto">

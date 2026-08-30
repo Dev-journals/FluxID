@@ -5,6 +5,8 @@ import {
   formatCacheAge,
   isRetryableNetworkError,
   isRetryableStatus,
+  resolveSegmentEmptyKind,
+  segmentEmptyMessage,
 } from "./protocolApi";
 
 describe("cold-start retry", () => {
@@ -93,5 +95,23 @@ describe("formatCacheAge", () => {
     expect(formatCacheAge(12_000)).toBe("12 seconds ago");
     expect(formatCacheAge(60_000)).toBe("1 minute ago");
     expect(formatCacheAge(5 * 60_000)).toBe("5 minutes ago");
+  });
+});
+
+describe("segment empty states", () => {
+  it("distinguishes none scored, pipeline failure, and filter miss", () => {
+    expect(resolveSegmentEmptyKind({ fetchFailed: true, totalScored: 0 })).toBe("pipeline-error");
+    expect(resolveSegmentEmptyKind({ fetchFailed: true, totalScored: 3 })).toBe("pipeline-error");
+    expect(resolveSegmentEmptyKind({ fetchFailed: false, totalScored: 0 })).toBe("none-scored");
+    expect(resolveSegmentEmptyKind({ fetchFailed: false, totalScored: 3 })).toBe("no-match");
+    expect(segmentEmptyMessage("none-scored")).toBe(
+      "No wallets scored yet. Add wallets in the Protocol tab."
+    );
+    expect(segmentEmptyMessage("pipeline-error")).toBe(
+      "Scoring pipeline encountered an error. Check backend logs."
+    );
+    expect(segmentEmptyMessage("no-match")).toBe(
+      "No wallets match these criteria. Try adjusting your filters."
+    );
   });
 });

@@ -114,6 +114,28 @@ export function formatCacheAge(ms: number): string {
   return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
 }
 
+export type SegmentEmptyKind = "none-scored" | "pipeline-error" | "no-match";
+
+export function segmentEmptyMessage(kind: SegmentEmptyKind): string {
+  switch (kind) {
+    case "none-scored":
+      return "No wallets scored yet. Add wallets in the Protocol tab.";
+    case "pipeline-error":
+      return "Scoring pipeline encountered an error. Check backend logs.";
+    case "no-match":
+      return "No wallets match these criteria. Try adjusting your filters.";
+  }
+}
+
+export function resolveSegmentEmptyKind(args: {
+  fetchFailed: boolean;
+  totalScored: number;
+}): SegmentEmptyKind {
+  if (args.fetchFailed) return "pipeline-error";
+  if (args.totalScored <= 0) return "none-scored";
+  return "no-match";
+}
+
 /**
  * Render free-tier sleeps after idle. The first TCP handshake is often reset
  * (ERR_CONNECTION_CLOSED / failed to fetch) while the process is still booting.
