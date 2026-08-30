@@ -1,0 +1,1 @@
+{"success":true,"data":{"network":"testnet","requested":1,"scored":1,"failed":[],"durationMs":658,"cachedCount":0,"maxCacheAgeMs":null,"wallets":[{"wallet":"GBACI4PCHZQXZFAADCMG4TICARUDZAGF5CI3A4RPTD7SOSW2VPKLGDCX","score":52,"risk":"Medium","cached":false,"cacheAgeMs":null,"horizonQueried":true}]}}

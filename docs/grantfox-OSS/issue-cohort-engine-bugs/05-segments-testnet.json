@@ -1,0 +1,1 @@
+{"success":true,"data":{"network":"testnet","criteria":{"limit":10},"total":1,"returned":1,"wallets":[{"wallet":"GBACI4PCHZQXZFAADCMG4TICARUDZAGF5CI3A4RPTD7SOSW2VPKLGDCX","score":52,"risk":"Medium","observations":1,"activity":"low","consistent":false,"scoreRange":0,"firstSeenAt":"2026-08-30T17:10:09.122Z","lastSeenAt":"2026-08-30T17:10:09.122Z"}]}}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Search, Download, Plus } from "lucide-react";
 import ProtocolMetrics from "../../components/ProtocolMetrics";
 import RiskHeatmap from "../../components/RiskHeatmap";
@@ -10,13 +10,21 @@ import {
   fetchProtocolCohorts,
   fetchProtocolHealth,
   fetchProtocolSegments,
+  pingBackendHealth,
   resetProtocolHistory,
+  formatCacheAge,
+  resolveSegmentEmptyKind,
+  segmentEmptyMessage,
   type AddWalletsResult,
   type ProtocolCohort,
   type ProtocolNetwork,
+  type ProtocolRequestOptions,
   type SegmentActivity,
   type SegmentResult,
 } from "../../../lib/protocolApi";
+import { isAccountNotFoundMessage } from "../../../lib/scoring";
+import AccountNotFoundHelp from "../../components/AccountNotFoundHelp";
+import { useStoredNetwork } from "../../../lib/dashboardStorage";
 
 type RiskFilter = "" | "Low" | "Medium" | "High";
 type ActivityFilter = "" | SegmentActivity;
@@ -38,43 +46,86 @@ export default function ProtocolDashboard() {
   const [consistent, setConsistent] = useState(false);
   const [segmentResult, setSegmentResult] = useState<SegmentResult | null>(null);
   const [segmentLoading, setSegmentLoading] = useState(false);
+  const [segmentFetchFailed, setSegmentFetchFailed] = useState(false);
+  const [totalScored, setTotalScored] = useState(0);
+  const [cohortsError, setCohortsError] = useState(false);
 
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadNetwork, setUploadNetwork] = useState<ProtocolNetwork>("mainnet");
+  const [protocolNetwork, setProtocolNetwork] = useStoredNetwork();
   const [walletInput, setWalletInput] = useState("");
   const [uploadResult, setUploadResult] = useState<AddWalletsResult | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [wakingServer, setWakingServer] = useState(false);
+
+  const onRetry = useCallback(() => setWakingServer(true), []);
+  const requestOptions: ProtocolRequestOptions = { onRetry };
 
   useEffect(() => {
     let active = true;
-    fetchProtocolCohorts().then((res) => {
-      if (active) setCohorts(res?.cohorts ?? []);
-    });
+    setWakingServer(false);
+    (async () => {
+      await pingBackendHealth(requestOptions);
+      if (!active) return;
+      const [health, res] = await Promise.all([
+        fetchProtocolHealth(protocolNetwork, requestOptions),
+        fetchProtocolCohorts(protocolNetwork, requestOptions),
+      ]);
+      if (!active) return;
+      setTotalScored(health?.totalWallets ?? 0);
+      setCohortsError(res == null);
+      setCohorts(res?.cohorts ?? []);
+      setWakingServer(false);
+    })();
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey, onRetry, protocolNetwork]);
 
   const cohortsLoading = cohorts === null;
   const cohortMax = cohorts && cohorts.length > 0
     ? Math.max(1, ...cohorts.map((c) => c.count))
     : 1;
+  // Cohort buckets (High Trust / Low risk / At Risk / Dormant) can all be 0 even
+  // when Medium wallets are scored. Use totalScored so we don't mislabel a
+  // successful pipeline as "nothing scored yet".
+  const noWalletsScored =
+    !cohortsLoading && !cohortsError && totalScored === 0;
 
   const runSegmentQuery = async (e: React.FormEvent) => {
     e.preventDefault();
     setSegmentLoading(true);
-    const result = await fetchProtocolSegments({
-      minScore: minScore === "" ? undefined : Number(minScore),
-      maxScore: maxScore === "" ? undefined : Number(maxScore),
-      risk: risk === "" ? undefined : risk,
-      activity: activity === "" ? undefined : activity,
-      consistent: consistent ? true : undefined,
-      limit: 50,
-    });
-    setSegmentResult(result);
+    setSegmentFetchFailed(false);
+    const [result, health] = await Promise.all([
+      fetchProtocolSegments(
+        {
+          minScore: minScore === "" ? undefined : Number(minScore),
+          maxScore: maxScore === "" ? undefined : Number(maxScore),
+          risk: risk === "" ? undefined : risk,
+          activity: activity === "" ? undefined : activity,
+          consistent: consistent ? true : undefined,
+          limit: 50,
+        },
+        protocolNetwork,
+        requestOptions
+      ),
+      fetchProtocolHealth(protocolNetwork, requestOptions),
+    ]);
+    if (health) setTotalScored(health.totalWallets);
+    setSegmentFetchFailed(result == null);
+    setSegmentResult(
+      result ?? {
+        network: protocolNetwork,
+        criteria: {},
+        total: 0,
+        returned: 0,
+        wallets: [],
+      }
+    );
     setSegmentLoading(false);
+    setWakingServer(false);
   };
 
   const runUpload = async (e: React.FormEvent) => {
@@ -86,9 +137,29 @@ export default function ProtocolDashboard() {
     if (wallets.length === 0) return;
     setUploadLoading(true);
     setUploadResult(null);
-    const result = await addProtocolWallets(wallets, uploadNetwork);
+    const result = await addProtocolWallets(wallets, protocolNetwork, requestOptions);
     setUploadResult(result);
     setUploadLoading(false);
+    setWakingServer(false);
+    if (result && result.scored > 0) {
+      setRefreshKey((k) => k + 1);
+    }
+  };
+
+  const refreshFromHorizon = async () => {
+    const wallets = walletInput
+      .split(/[\s,]+/)
+      .map((w) => w.trim())
+      .filter(Boolean);
+    if (wallets.length === 0) return;
+    setUploadLoading(true);
+    const result = await addProtocolWallets(wallets, protocolNetwork, {
+      ...requestOptions,
+      refresh: true,
+    });
+    setUploadResult(result);
+    setUploadLoading(false);
+    setWakingServer(false);
     if (result && result.scored > 0) {
       setRefreshKey((k) => k + 1);
     }
@@ -97,7 +168,8 @@ export default function ProtocolDashboard() {
   const runReset = async () => {
     if (!confirm("Reset protocol intelligence data? This clears all uploaded wallets.")) return;
     setResetting(true);
-    await resetProtocolHistory();
+    await resetProtocolHistory(protocolNetwork, requestOptions);
+    setWakingServer(false);
     setUploadResult(null);
     setRefreshKey((k) => k + 1);
     setResetting(false);
@@ -107,9 +179,10 @@ export default function ProtocolDashboard() {
     setExporting(true);
     try {
       const [health, segments] = await Promise.all([
-        fetchProtocolHealth(),
-        fetchProtocolSegments({ limit: 500 }),
+        fetchProtocolHealth(protocolNetwork, requestOptions),
+        fetchProtocolSegments({ limit: 500 }, protocolNetwork, requestOptions),
       ]);
+      setWakingServer(false);
       if (!health || !segments) {
         alert("Could not fetch protocol data — make sure the backend is reachable.");
         return;
@@ -189,6 +262,31 @@ export default function ProtocolDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <div
+            id="protocol-network-switcher"
+            className="flex items-center p-0.5 rounded-lg card overflow-hidden"
+            role="radiogroup"
+            aria-label="Protocol network"
+          >
+            {(["mainnet", "testnet"] as ProtocolNetwork[]).map((n) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={protocolNetwork === n}
+                onClick={() => setProtocolNetwork(n)}
+                style={{
+                  background: protocolNetwork === n ? "var(--primary)" : "transparent",
+                  color: protocolNetwork === n ? "var(--background)" : "var(--foreground-muted)",
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}
+                className="px-3 py-1.5 rounded-md uppercase"
+              >
+                {n}
+              </button>
+            ))}
+          </div>
           <button
             onClick={runExportReport}
             disabled={exporting}
@@ -206,6 +304,25 @@ export default function ProtocolDashboard() {
           </button>
         </div>
       </div>
+
+      {wakingServer && (
+        <div
+          role="status"
+          className="mb-6 rounded-2xl px-4 py-3 text-sm font-semibold"
+          style={{
+            background: "#eab30815",
+            border: "1px solid #eab30840",
+            color: "var(--foreground)",
+          }}
+        >
+          Waking up server, please wait...
+          <span
+            style={{ color: "var(--foreground-muted)", fontWeight: 500, marginLeft: 8 }}
+          >
+            The backend is starting after idle. Your request will retry automatically — nothing is lost.
+          </span>
+        </div>
+      )}
 
       {uploadOpen && (
         <form
@@ -230,10 +347,10 @@ export default function ProtocolDashboard() {
                 <button
                   key={n}
                   type="button"
-                  onClick={() => setUploadNetwork(n)}
+                  onClick={() => setProtocolNetwork(n)}
                   style={{
-                    background: uploadNetwork === n ? "var(--primary)" : "transparent",
-                    color: uploadNetwork === n ? "var(--background)" : "var(--foreground-muted)",
+                    background: protocolNetwork === n ? "var(--primary)" : "transparent",
+                    color: protocolNetwork === n ? "var(--background)" : "var(--foreground-muted)",
                     fontSize: 11,
                     fontWeight: 700,
                   }}
@@ -275,7 +392,11 @@ export default function ProtocolDashboard() {
                 opacity: uploadLoading || walletInput.trim() === "" ? 0.5 : 1,
               }}
             >
-              {uploadLoading ? "Scoring…" : "Score & Add"}
+              {uploadLoading
+                ? wakingServer
+                  ? "Waking up server, please wait..."
+                  : "Scoring…"
+                : "Score & Add"}
             </button>
             {uploadResult && (
               <span style={{ color: "var(--foreground-muted)", fontSize: 12 }}>
@@ -285,6 +406,9 @@ export default function ProtocolDashboard() {
                   : ""}
                 {" · "}
                 {(uploadResult.durationMs / 1000).toFixed(1)}s
+                {uploadResult.wallets?.some((w) => w.horizonQueried)
+                  ? " · Horizon"
+                  : ""}
               </span>
             )}
             <button
@@ -300,6 +424,31 @@ export default function ProtocolDashboard() {
               {resetting ? "resetting…" : "reset protocol data"}
             </button>
           </div>
+          {uploadResult && uploadResult.cachedCount > 0 && (
+            <div
+              className="mt-3 flex flex-wrap items-center gap-3 rounded-lg px-3 py-2"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--foreground-muted)",
+                fontSize: 12,
+              }}
+            >
+              <span>
+                Using cached data from{" "}
+                {formatCacheAge(uploadResult.maxCacheAgeMs ?? 0)}
+              </span>
+              <button
+                type="button"
+                onClick={refreshFromHorizon}
+                disabled={uploadLoading}
+                className="underline font-semibold"
+                style={{ color: "var(--primary)" }}
+              >
+                Refresh from Horizon
+              </button>
+            </div>
+          )}
           {uploadResult && uploadResult.failed.length > 0 && (
             <div
               className="mt-3 pt-3"
@@ -325,21 +474,30 @@ export default function ProtocolDashboard() {
                   </div>
                 ))}
               </div>
+              {uploadResult.failed.some((f) => isAccountNotFoundMessage(f.reason)) && (
+                <AccountNotFoundHelp
+                  network={protocolNetwork}
+                  switcherHref="#protocol-network-switcher"
+                  onSwitchNetwork={() =>
+                    setProtocolNetwork(protocolNetwork === "mainnet" ? "testnet" : "mainnet")
+                  }
+                />
+              )}
             </div>
           )}
         </form>
       )}
 
       {/* Early Warning System */}
-      <EarlyWarningBanner refreshKey={refreshKey} />
+      <EarlyWarningBanner refreshKey={refreshKey} network={protocolNetwork} />
 
       {/* High-Level Metrics */}
-      <ProtocolMetrics refreshKey={refreshKey} />
+      <ProtocolMetrics refreshKey={refreshKey} network={protocolNetwork} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Risk Heatmap - 2/3 width */}
         <div className="lg:col-span-2">
-          <RiskHeatmap refreshKey={refreshKey} />
+          <RiskHeatmap refreshKey={refreshKey} network={protocolNetwork} />
         </div>
 
         {/* Cohort & Segmentation Engine - 1/3 width */}
@@ -377,15 +535,23 @@ export default function ProtocolDashboard() {
                     Loading segments…
                   </p>
                 )}
-                {!cohortsLoading && (cohorts?.length ?? 0) === 0 && (
+                {!cohortsLoading && cohortsError && (
                   <p
                     style={{ color: "var(--foreground-dim)", fontSize: 12 }}
                     className="py-2"
                   >
-                    No cohort data yet.
+                    {segmentEmptyMessage("pipeline-error")}
                   </p>
                 )}
-                {!cohortsLoading && cohorts && cohorts.map((s) => (
+                {noWalletsScored && (
+                  <p
+                    style={{ color: "var(--foreground-dim)", fontSize: 12 }}
+                    className="py-2"
+                  >
+                    {segmentEmptyMessage("none-scored")}
+                  </p>
+                )}
+                {!cohortsLoading && !cohortsError && !noWalletsScored && cohorts && cohorts.map((s) => (
                   <button
                     key={s.id}
                     title={s.description}
@@ -561,8 +727,11 @@ export default function ProtocolDashboard() {
                         style={{ color: "var(--foreground-muted)", fontSize: 11, fontWeight: 700 }}
                         className="uppercase mb-2"
                       >
-                        {segmentResult.total} match{segmentResult.total === 1 ? "" : "es"}
-                        {segmentResult.total > segmentResult.returned
+                        {segmentFetchFailed
+                          ? "Query failed"
+                          : `${segmentResult.total} match${segmentResult.total === 1 ? "" : "es"}`}
+                        {!segmentFetchFailed &&
+                        segmentResult.total > segmentResult.returned
                           ? ` · showing ${segmentResult.returned}`
                           : ""}
                       </p>
@@ -571,7 +740,12 @@ export default function ProtocolDashboard() {
                           style={{ color: "var(--foreground-dim)", fontSize: 12 }}
                           className="py-2"
                         >
-                          No wallets match these criteria yet.
+                          {segmentEmptyMessage(
+                            resolveSegmentEmptyKind({
+                              fetchFailed: segmentFetchFailed,
+                              totalScored,
+                            })
+                          )}
                         </p>
                       ) : (
                         <div className="space-y-1 max-h-60 overflow-y-auto">

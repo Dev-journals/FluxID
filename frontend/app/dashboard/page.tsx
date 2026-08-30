@@ -106,11 +106,16 @@ function DashboardSummary({
   // Top risk factors — lowest sub-scores (weakest signals, headline problems).
   const riskFactors = [...factors].sort((a, b) => a.value - b.value).slice(0, 2);
 
-  // Compact flow: summarize the 14 most recent transactions into a single stacked bar per direction.
-  const recent = analysis.transactions.slice(0, 14);
+  // Compact flow: summarize the most recent transactions (up to RECENT_FLOW_LIMIT) into a
+  // single stacked bar per direction. The card always states how many of the wallet's total
+  // transactions this sample covers, so it can never silently contradict the full-history stats
+  // shown elsewhere on the dashboard (Score Breakdown, Analytics).
+  const RECENT_FLOW_LIMIT = 100;
+  const recent = analysis.transactions.slice(0, RECENT_FLOW_LIMIT);
   const recentIn = recent.filter((t) => t.type === "inflow").length;
   const recentOut = recent.filter((t) => t.type === "outflow").length;
   const recentTotal = Math.max(recentIn + recentOut, 1);
+  const totalTxCount = analysis.transactions.length;
 
   return (
     <motion.div initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
@@ -206,12 +211,15 @@ function DashboardSummary({
             />
           </div>
           <p style={{ color: "var(--foreground-dim)", fontSize: 11 }} className="pt-2">
-            Last {recent.length} tx ·{" "}
+            {recent.length < totalTxCount
+              ? `Showing ${recent.length} of ${totalTxCount} tx`
+              : `${recent.length} tx`}{" "}
+            ·{" "}
             <Link
-              href="/dashboard/analytics"
+              href="/dashboard/transactions"
               className="text-[var(--primary)] hover:underline font-bold"
             >
-              see Analytics for full charts
+              see all transactions
             </Link>
           </p>
 

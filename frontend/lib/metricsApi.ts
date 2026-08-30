@@ -60,6 +60,8 @@ export async function logEvent(
   }
 }
 
+const FEEDBACK_TIMEOUT_MS = 10_000;
+
 export async function submitFeedback(
   rating: number,
   message: string,
@@ -67,16 +69,23 @@ export async function submitFeedback(
 ): Promise<boolean> {
   const base = baseUrl();
   if (!base) return false;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FEEDBACK_TIMEOUT_MS);
   try {
     const res = await fetch(`${base}feedback`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rating, message, wallet: wallet ?? null }),
+      signal: controller.signal,
     });
     const body = (await res.json()) as { success?: boolean };
     return body.success === true;
   } catch {
+    // Covers network errors and the 10s timeout abort alike — the caller
+    // treats both as "failed to send" and lets the user retry.
     return false;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

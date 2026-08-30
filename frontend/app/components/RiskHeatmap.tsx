@@ -2,24 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { fetchProtocolRiskHeatmap, type ProtocolRiskBand } from "../../lib/protocolApi";
+import { fetchProtocolRiskHeatmap, type ProtocolNetwork, type ProtocolRiskBand } from "../../lib/protocolApi";
 
 interface RiskHeatmapProps {
   refreshKey?: number;
+  network?: ProtocolNetwork;
 }
 
-export default function RiskHeatmap({ refreshKey = 0 }: RiskHeatmapProps) {
+export default function RiskHeatmap({ refreshKey = 0, network }: RiskHeatmapProps) {
   const [bands, setBands] = useState<ProtocolRiskBand[] | null>(null);
 
   useEffect(() => {
     let active = true;
-    fetchProtocolRiskHeatmap().then((res) => {
+    fetchProtocolRiskHeatmap(network).then((res) => {
       if (active) setBands(res?.bands ?? []);
     });
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, network]);
 
   const isLoading = bands === null;
   const isEmpty = !isLoading && bands.length === 0;

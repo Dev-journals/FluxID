@@ -1,0 +1,1 @@
+{"success":true,"data":{"network":"testnet","requested":1,"scored":0,"failed":[{"wallet":"GAVA7FY3KBXJVZDBX254LPM53YXRUEVLM5BXMXZOC7ZIW3HXFP6LT4SR","reason":"Account not found on this network"}],"durationMs":3287,"cachedCount":0,"maxCacheAgeMs":null,"wallets":[]}}

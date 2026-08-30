@@ -8,11 +8,13 @@ import { useToast } from "../../components/Toast";
 import { useAnalysis } from "../context/AnalysisContext";
 import { AnalyzingButton } from "../../components/Skeletons";
 import {
+  isAccountNotFoundMessage,
   isValidStellarAddress,
   resolveAnalyzeAddress,
   type StellarNetwork,
 } from "../../../lib/scoring";
 import { FREIGHTER_DOWNLOAD_URL } from "../../../lib/freighterDetect";
+import AccountNotFoundHelp from "../../components/AccountNotFoundHelp";
 
 export default function AnalyzeBar() {
   const {
@@ -96,6 +98,7 @@ export default function AnalyzeBar() {
             sm+ the wrapper dissolves so they flow inline with the input. */}
         <div className="flex w-full min-w-0 items-center gap-2 sm:gap-3 sm:contents">
           <div
+            id="network-switcher"
             className="bg-[var(--background)] border border-[var(--border)] flex items-center p-1 rounded-xl shrink-0"
             role="radiogroup"
             aria-label="Network"
@@ -177,11 +180,18 @@ export default function AnalyzeBar() {
         </span>
       </div>
 
-      {error && (
-        <p style={{ color: "#ef4444", fontSize: 12 }} className="mt-2">
-          {error}
-        </p>
-      )}
+      {error &&
+        (isAccountNotFoundMessage(error) ? (
+          <AccountNotFoundHelp
+            network={network}
+            switcherHref="#network-switcher"
+            onSwitchNetwork={() => setNetwork(network === "mainnet" ? "testnet" : "mainnet")}
+          />
+        ) : (
+          <p style={{ color: "#ef4444", fontSize: 12 }} className="mt-2">
+            {error}
+          </p>
+        ))}
     </motion.div>
   );
 }
