@@ -80,8 +80,38 @@ interface ApiEnvelope<T> {
   error?: string;
 }
 
+export interface ScoredWallet {
+  wallet: string;
+  score: number;
+  risk: "Low" | "Medium" | "High";
+  cached: boolean;
+  cacheAgeMs: number | null;
+  horizonQueried: boolean;
+}
+
+export interface AddWalletsResult {
+  network: ProtocolNetwork;
+  requested: number;
+  scored: number;
+  failed: { wallet: string; reason: string }[];
+  durationMs: number;
+  cachedCount: number;
+  maxCacheAgeMs: number | null;
+  wallets: ScoredWallet[];
+}
+
 export interface ProtocolRequestOptions {
   onRetry?: (attempt: number, maxAttempts: number) => void;
+  refresh?: boolean;
+}
+
+export function formatCacheAge(ms: number): string {
+  if (ms < 60_000) {
+    const seconds = Math.max(1, Math.round(ms / 1000));
+    return `${seconds} second${seconds === 1 ? "" : "s"} ago`;
+  }
+  const minutes = Math.max(1, Math.round(ms / 60_000));
+  return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
 }
 
 /**
@@ -189,14 +219,6 @@ export function fetchProtocolAlerts(network?: ProtocolNetwork, options?: Protoco
   );
 }
 
-export interface AddWalletsResult {
-  network: ProtocolNetwork;
-  requested: number;
-  scored: number;
-  failed: { wallet: string; reason: string }[];
-  durationMs: number;
-}
-
 export async function addProtocolWallets(
   wallets: string[],
   network: ProtocolNetwork,
@@ -211,7 +233,11 @@ export async function addProtocolWallets(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallets, network }),
+        body: JSON.stringify({
+          wallets,
+          network,
+          refresh: options?.refresh !== false,
+        }),
       },
       options
     );

@@ -6,6 +6,8 @@ import os from 'node:os';
 const WALLET_A = 'GAVA7FY3KBXJVZDBX254LPM53YXRUEVLM5BXMXZOC7ZIW3HXFP6LT4SR';
 const WALLET_B = 'GBACI4PCHZQXZFAADCMG4TICARUDZAGF5CI3A4RPTD7SOSW2VPKLGDCX';
 
+const horizonCalls = { count: 0 };
+
 vi.mock('./price.service.js', () => ({
   getXlmUsdPrice: vi.fn(async () => ({
     usd: 0.12,
@@ -16,17 +18,20 @@ vi.mock('./price.service.js', () => ({
 
 vi.mock('./horizon.service.js', () => ({
   createHorizonService: () => ({
-    getAccountPayments: async (id: string) => [
-      {
-        id: `pay-${id}`,
-        from: 'GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ',
-        to: id,
-        amount: 250,
-        asset: 'XLM',
-        timestamp: new Date('2026-08-01T00:00:00Z'),
-        isIncoming: true,
-      },
-    ],
+    getAccountPayments: async (id: string) => {
+      horizonCalls.count += 1;
+      return [
+        {
+          id: `pay-${id}`,
+          from: 'GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ',
+          to: id,
+          amount: 250,
+          asset: 'XLM',
+          timestamp: new Date('2026-08-01T00:00:00Z'),
+          isIncoming: true,
+        },
+      ];
+    },
   }),
 }));
 
@@ -35,6 +40,7 @@ let tmpDir: string;
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fluxid-protocol-test-'));
   process.env.FLUXID_DATA_DIR = tmpDir;
+  horizonCalls.count = 0;
   vi.resetModules();
 });
 
@@ -65,5 +71,25 @@ describe('protocol scoring persistence', () => {
 
     const other = await getHealthMetrics('testnet');
     expect(other.totalWallets).toBe(0);
+  });
+
+  it('queries Horizon on each score by default and only reuses cache when refresh is false', async () => {
+    const { addWalletsToProtocol } = await loadProtocol();
+
+    const first = await addWalletsToProtocol([WALLET_A], 'mainnet');
+    expect(first.cachedCount).toBe(0);
+    expect(first.wallets[0].horizonQueried).toBe(true);
+    expect(horizonCalls.count).toBe(1);
+
+    const cached = await addWalletsToProtocol([WALLET_A], 'mainnet', { refresh: false });
+    expect(cached.cachedCount).toBe(1);
+    expect(cached.wallets[0].horizonQueried).toBe(false);
+    expect(cached.maxCacheAgeMs).toBeGreaterThanOrEqual(0);
+    expect(horizonCalls.count).toBe(1);
+
+    const fresh = await addWalletsToProtocol([WALLET_A], 'mainnet', { refresh: true });
+    expect(fresh.cachedCount).toBe(0);
+    expect(fresh.wallets[0].horizonQueried).toBe(true);
+    expect(horizonCalls.count).toBe(2);
   });
 });

@@ -12,6 +12,7 @@ import {
   fetchProtocolSegments,
   pingBackendHealth,
   resetProtocolHistory,
+  formatCacheAge,
   type AddWalletsResult,
   type ProtocolCohort,
   type ProtocolNetwork,
@@ -108,6 +109,25 @@ export default function ProtocolDashboard() {
     setUploadLoading(true);
     setUploadResult(null);
     const result = await addProtocolWallets(wallets, protocolNetwork, requestOptions);
+    setUploadResult(result);
+    setUploadLoading(false);
+    setWakingServer(false);
+    if (result && result.scored > 0) {
+      setRefreshKey((k) => k + 1);
+    }
+  };
+
+  const refreshFromHorizon = async () => {
+    const wallets = walletInput
+      .split(/[\s,]+/)
+      .map((w) => w.trim())
+      .filter(Boolean);
+    if (wallets.length === 0) return;
+    setUploadLoading(true);
+    const result = await addProtocolWallets(wallets, protocolNetwork, {
+      ...requestOptions,
+      refresh: true,
+    });
     setUploadResult(result);
     setUploadLoading(false);
     setWakingServer(false);
@@ -357,6 +377,9 @@ export default function ProtocolDashboard() {
                   : ""}
                 {" · "}
                 {(uploadResult.durationMs / 1000).toFixed(1)}s
+                {uploadResult.wallets?.some((w) => w.horizonQueried)
+                  ? " · Horizon"
+                  : ""}
               </span>
             )}
             <button
@@ -372,6 +395,31 @@ export default function ProtocolDashboard() {
               {resetting ? "resetting…" : "reset protocol data"}
             </button>
           </div>
+          {uploadResult && uploadResult.cachedCount > 0 && (
+            <div
+              className="mt-3 flex flex-wrap items-center gap-3 rounded-lg px-3 py-2"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--foreground-muted)",
+                fontSize: 12,
+              }}
+            >
+              <span>
+                Using cached data from{" "}
+                {formatCacheAge(uploadResult.maxCacheAgeMs ?? 0)}
+              </span>
+              <button
+                type="button"
+                onClick={refreshFromHorizon}
+                disabled={uploadLoading}
+                className="underline font-semibold"
+                style={{ color: "var(--primary)" }}
+              >
+                Refresh from Horizon
+              </button>
+            </div>
+          )}
           {uploadResult && uploadResult.failed.length > 0 && (
             <div
               className="mt-3 pt-3"

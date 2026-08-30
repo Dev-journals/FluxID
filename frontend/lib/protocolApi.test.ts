@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   coldStartRetry,
   fetchWithColdStartRetry,
+  formatCacheAge,
   isRetryableNetworkError,
   isRetryableStatus,
 } from "./protocolApi";
@@ -83,5 +84,14 @@ describe("cold-start retry", () => {
     expect(isRetryableNetworkError(new TypeError("Failed to fetch"))).toBe(true);
     expect(isRetryableNetworkError(new TypeError("net::ERR_CONNECTION_CLOSED"))).toBe(true);
     expect(isRetryableNetworkError(new DOMException("aborted", "AbortError"))).toBe(false);
+  });
+});
+
+describe("formatCacheAge", () => {
+  it("uses seconds under a minute and minutes after that", () => {
+    expect(formatCacheAge(1_000)).toBe("1 second ago");
+    expect(formatCacheAge(12_000)).toBe("12 seconds ago");
+    expect(formatCacheAge(60_000)).toBe("1 minute ago");
+    expect(formatCacheAge(5 * 60_000)).toBe("5 minutes ago");
   });
 });

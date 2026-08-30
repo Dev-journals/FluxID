@@ -420,12 +420,29 @@ export async function getAlerts(
   return { network, alerts };
 }
 
+export interface ScoredWallet {
+  wallet: string;
+  score: number;
+  risk: RiskLevel;
+  cached: boolean;
+  cacheAgeMs: number | null;
+  horizonQueried: boolean;
+}
+
 export interface AddWalletsResult {
   network: NetworkType;
   requested: number;
   scored: number;
   failed: { wallet: string; reason: string }[];
   durationMs: number;
+  cachedCount: number;
+  maxCacheAgeMs: number | null;
+  wallets: ScoredWallet[];
+}
+
+export interface AddWalletsOptions {
+  /** When true (default), skip the in-process score cache and query Horizon. */
+  refresh?: boolean;
 }
 
 const ADD_WALLETS_CONCURRENCY = 5;
@@ -433,15 +450,27 @@ const ADD_WALLETS_MAX = 100;
 
 async function scoreOne(
   wallet: string,
-  network: NetworkType
-): Promise<{ wallet: string; ok: true } | { wallet: string; ok: false; reason: string }> {
+  network: NetworkType,
+  refresh: boolean
+): Promise<
+  | { ok: true } & ScoredWallet
+  | { wallet: string; ok: false; reason: string }
+> {
   try {
     const validated = validateAccountId(wallet);
-    const cached = cacheService.get(validated, network);
-    const result =
-      cached ??
-      (await calculateWalletScore(validated, network, createHorizonService(network)));
-    if (!cached) cacheService.set(validated, network, result);
+    const cachedEntry = refresh ? null : cacheService.getEntry(validated, network);
+    let result;
+    let cached = false;
+    let cacheAgeMs: number | null = null;
+
+    if (cachedEntry) {
+      result = cachedEntry.data;
+      cached = true;
+      cacheAgeMs = Date.now() - cachedEntry.timestamp;
+    } else {
+      result = await calculateWalletScore(validated, network, createHorizonService(network));
+      cacheService.set(validated, network, result);
+    }
 
     await appendProtocolHistory({
       wallet: validated,
@@ -450,7 +479,15 @@ async function scoreOne(
       risk: result.risk,
       timestamp: Date.now(),
     });
-    return { wallet: validated, ok: true };
+    return {
+      wallet: validated,
+      ok: true,
+      score: result.score,
+      risk: result.risk,
+      cached,
+      cacheAgeMs,
+      horizonQueried: !cached,
+    };
   } catch (err) {
     const e = err as Error;
     logger.warn({ wallet, network, error: e.message }, 'Protocol-side scoring failed');
@@ -463,9 +500,11 @@ async function scoreOne(
 
 export async function addWalletsToProtocol(
   walletsInput: string[],
-  network: NetworkType
+  network: NetworkType,
+  options: AddWalletsOptions = {}
 ): Promise<AddWalletsResult> {
   const started = Date.now();
+  const refresh = options.refresh !== false;
   // Dedupe to keep the workload bounded; trim whitespace so paste-from-textarea works.
   const seen = new Set<string>();
   const queue: string[] = [];
@@ -478,16 +517,30 @@ export async function addWalletsToProtocol(
   }
 
   const failed: { wallet: string; reason: string }[] = [];
+  const wallets: ScoredWallet[] = [];
   let scored = 0;
 
   for (let i = 0; i < queue.length; i += ADD_WALLETS_CONCURRENCY) {
     const batch = queue.slice(i, i + ADD_WALLETS_CONCURRENCY);
-    const results = await Promise.all(batch.map((w) => scoreOne(w, network)));
+    const results = await Promise.all(batch.map((w) => scoreOne(w, network, refresh)));
     for (const r of results) {
-      if (r.ok) scored++;
-      else failed.push({ wallet: r.wallet, reason: r.reason });
+      if (r.ok) {
+        scored++;
+        wallets.push({
+          wallet: r.wallet,
+          score: r.score,
+          risk: r.risk,
+          cached: r.cached,
+          cacheAgeMs: r.cacheAgeMs,
+          horizonQueried: r.horizonQueried,
+        });
+      } else {
+        failed.push({ wallet: r.wallet, reason: r.reason });
+      }
     }
   }
+
+  const cachedAges = wallets.filter((w) => w.cached && w.cacheAgeMs !== null).map((w) => w.cacheAgeMs as number);
 
   return {
     network,
@@ -495,6 +548,9 @@ export async function addWalletsToProtocol(
     scored,
     failed,
     durationMs: Date.now() - started,
+    cachedCount: wallets.filter((w) => w.cached).length,
+    maxCacheAgeMs: cachedAges.length === 0 ? null : Math.max(...cachedAges),
+    wallets,
   };
 }
 
