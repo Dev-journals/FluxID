@@ -1,0 +1,1 @@
+{"success":true,"data":{"generatedAt":"2026-08-30T17:10:12.293Z","network":"testnet","windowHours":720,"totalWallets":1,"avgScore":52,"distribution":{"low":0,"medium":1,"high":0},"lowRiskPct":0,"highRiskAlerts":0,"delta":{"avgScore":null,"totalWallets":null,"lowRiskPct":null,"highRiskAlerts":null}}}
